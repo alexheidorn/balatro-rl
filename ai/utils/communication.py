@@ -29,8 +29,8 @@ class BalatroPipeIO:
     """
     
     def __init__(self, request_pipe: str = "/tmp/balatro_request", response_pipe: str = "/tmp/balatro_response"):
-        self.request_pipe = request_pipe
-        self.response_pipe = response_pipe
+        self.request_pipe = self.REQUEST_PIPE
+        self.response_pipe = self.RESPONSE_PIPE
         self.logger = logging.getLogger(__name__)
         
         # Persistent pipe handles
@@ -69,6 +69,11 @@ class BalatroPipeIO:
                 # # Create named pipe
                 # os.mkfifo(pipe_path)
                 # self.logger.info(f"Created pipe: {pipe_path}")
+                if platform.system() == "Windows":
+                    # Windows named pipes are created automatically when opened
+                    self.logger.info("Using Windows named pipes")
+                    return
+                
                 if not os.path.exists(pipe_path):
                     os.mkfifo(pipe_path)
                     self.logger.info(f"Created pipe: {pipe_path}")
