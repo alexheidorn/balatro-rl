@@ -49,14 +49,19 @@ class BalatroPipeIO:
         """
         for pipe_path in [self.request_pipe, self.response_pipe]:
             try:
-                # Remove existing pipe if it exists
-                if os.path.exists(pipe_path):
-                    os.unlink(pipe_path)
-                    self.logger.debug(f"Removed existing pipe: {pipe_path}")
+                # # Remove existing pipe if it exists
+                # if os.path.exists(pipe_path):
+                #     os.unlink(pipe_path)
+                #     self.logger.debug(f"Removed existing pipe: {pipe_path}")
                 
-                # Create named pipe
-                os.mkfifo(pipe_path)
-                self.logger.info(f"Created pipe: {pipe_path}")
+                # # Create named pipe
+                # os.mkfifo(pipe_path)
+                # self.logger.info(f"Created pipe: {pipe_path}")
+                if not os.path.exists(pipe_path):
+                    os.mkfifo(pipe_path)
+                    self.logger.info(f"Created pipe: {pipe_path}")
+                else:
+                    self.logger.info(f"Pipe already exists: {pipe_path}")
                 
             except Exception as e:
                 self.logger.error(f"Failed to create pipe {pipe_path}: {e}")
