@@ -72,12 +72,15 @@ class BalatroPipeIO:
         try:
             self.logger.info(f"🔧 Waiting for Balatro to connect...")
             self.logger.info(f"   Press 'R' in Balatro now to activate RL training!")
+
+            req_fd = os.open(self.request_pipe, os.O_RDWR)
+            res_fd = os.open(self.response_pipe, os.O_RDWR)
             
             # Open request pipe for reading (Balatro writes to this)
-            self.request_handle = open(self.request_pipe, 'r')
+            self.request_handle = os.fdopen(req_fd, 'r')
             
             # Open response pipe for writing (AI writes to this)
-            self.response_handle = open(self.response_pipe, 'w')
+            self.response_handle = os.fdopen(res_fd, 'w')
             
         except Exception as e:
             self.logger.error(f"Failed to open persistent handles: {e}")
