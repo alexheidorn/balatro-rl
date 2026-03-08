@@ -13,6 +13,7 @@ This abstraction can be used by:
 import json
 import logging
 import os
+import platform
 from typing import Dict, Any, Optional
 
 
@@ -39,6 +40,17 @@ class BalatroPipeIO:
         # Create pipes and open persistent handles
         self.create_pipes()
         self.open_persistent_handles()
+
+    def get_pipe_paths():
+        system = platform.system()
+
+        if system == "Windows":
+            return r'\\.\pipe\balatro_request', r'\\.\pipe\balatro_response'
+        else:
+            return '/tmp/balatro_request', '/tmp/balatro_response'
+
+
+    REQUEST_PIPE, RESPONSE_PIPE = get_pipe_paths()
     
     def create_pipes(self) -> None:
         """
