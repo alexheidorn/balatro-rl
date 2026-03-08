@@ -7,8 +7,19 @@ local json = require("dkjson")
 
 -- Dual pipe communication settings with persistent handles
 local comm_enabled = false
-local request_pipe = "/tmp/balatro_request"
-local response_pipe = "/tmp/balatro_response"
+local request_pipe
+local response_pipe
+
+local os_name = love.system.getOS()
+
+if os_name == "Windows" then
+    request_pipe = "\\\\.\\pipe\\balatro_request"
+    response_pipe = "\\\\.\\pipe\\balatro_response"
+else
+    request_pipe = "/tmp/balatro_request"
+    response_pipe = "/tmp/balatro_response"
+end
+
 local request_handle = nil
 local response_handle = nil
 
