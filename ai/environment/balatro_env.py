@@ -9,7 +9,7 @@ import numpy as np
 from typing import Dict, Any, Tuple, List, Optional
 import logging
 import gymnasium as gym
-import global_var
+from .. import global_var
 from gymnasium import spaces
 
 from ..utils.communication import BalatroPipeIO
@@ -72,7 +72,7 @@ class BalatroEnv(gym.Env):
         
         # Observation space: This should describe the type and shape of the observation
         # Constants
-        self.OBSERVATION_SIZE = 216
+        self.OBSERVATION_SIZE = 221
         self.observation_space = spaces.Box(
             low=-np.inf, # lowest bound of observation data
             high=np.inf, # highest bound of observation data
@@ -123,7 +123,7 @@ class BalatroEnv(gym.Env):
         
         # Create initial action mask
         initial_available_actions = initial_request.get('available_actions', [])
-        initial_action_mask = self._create_action_mask(initial_available_actions)
+        initial_action_mask = self._create_action_mask(initial_available_actions, self.current_state)
         self._action_masks = initial_action_mask
         
         return initial_observation, {}
@@ -224,7 +224,7 @@ class BalatroEnv(gym.Env):
         
         # Create action mask for MaskablePPO
         available_actions = next_request.get('available_actions', [])
-        action_mask = self._create_action_mask(available_actions)
+        action_mask = self._create_action_mask(available_actions, self.current_state)
         
         info = {}
         
@@ -249,7 +249,7 @@ class BalatroEnv(gym.Env):
         else:
             return np.array([True] * sum(self.action_space.nvec), dtype=bool)
     
-    def _create_action_mask(self, available_actions, phase, current_game_state):
+    def _create_action_mask(self, available_actions, current_game_state):
         """Create action mask for MultiDiscrete space"""
         action_masks = []
         
@@ -266,20 +266,20 @@ class BalatroEnv(gym.Env):
         
         if global_var.isShop == True:
             for i in range(self.MAX_CARDS):
-                self.action_masks.append([True, False])
+                action_masks.append([False, False])
             current_shop_items = current_game_state.get('shop', {}).get('items', [])
             money = current_game_state.get('gold', 0)
-            shop_masks = [False] * self.Max_SHOP_SLOTS
+            shop_masks = [False] * self.MAX_SHOP_SLOTS
             for i, item in enumerate(current_shop_items):
-                if i < self.Max_SHOP_SLOTS and item.get('cost', 999) <= money:
+                if i < self.MAX_SHOP_SLOTS and item.get('cost', 999) <= money:
                     shop_masks[i] = True
-            self.action_masks.append(shop_masks)
+            action_masks.append(shop_masks)
 
             avaliable_jokers = current_game_state.get('jokers', [])
             joker_mask = [False] * self.MAX_JOKER_SLOTS
             for i in range(min(len(avaliable_jokers), self.MAX_JOKER_SLOTS)):
                 joker_mask[i] = True
-            self.action_masks.append(joker_mask)
+            action_masks.append(joker_mask)
 
         else:
             # Card selection masks - context-aware based on available actions
@@ -291,6 +291,8 @@ class BalatroEnv(gym.Env):
                 # Only SELECT_HAND available - allow card selection
                 for _ in range(self.MAX_CARDS):
                     action_masks.append([True, True])
+            action_masks.append([False] * self.MAX_SHOP_SLOTS)
+            action_masks.append([False] * self.MAX_JOKER_SLOTS)
 
         
         # Flatten for MaskablePPO

@@ -1,2 +1,2 @@
-global isShop
-global isBlind
+isShop = False
+isBlind = True

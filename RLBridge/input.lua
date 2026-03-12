@@ -99,7 +99,7 @@ function I.discard_hand()
 end
 ---Used for buying cards in the shop
 function I.buy_card(slot)
-    if not slot or type(slot) -= "number" then
+    if not slot or type(slot) ~= "number" then
         return { success = false, error = "Invalid slot parameter" }
     end
 
@@ -118,7 +118,7 @@ function I.buy_card(slot)
 
     if G.GAME.dollars < card.cost then
         return { success = false, error = "Cannot afford card, cost: " .. tostring(card.cost) }
-    end,
+    end
 
     G.FUNCS.buy_from_shop({ config = {ref_table = card } })
     utils.log_input("buy_card slot " .. tostring(slot) .. " " .. utils.completed_success_msg)

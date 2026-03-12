@@ -43,7 +43,7 @@ local ID_TO_ACTION = {
     [ACTIONS.START_RUN] = "start_run",
     [ACTIONS.SELECT_BLIND] = "select_blind",
     [ACTIONS.RESTART_RUN] = "restart_run",
-    [AACTIONS.BUY_JOKER] = "buy_joker",
+    [ACTIONS.BUY_JOKER] = "buy_joker",
     [ACTIONS.SELL_JOKER] = "sell_joker",
     [ACTIONS.REROLL_SHOP] = "reroll_shop",
     [ACTIONS.SKIP_SHOP] = "skip_shop"
@@ -130,7 +130,7 @@ local action_registry = {
             local slot = params and params[1] or 1
             return input.buy_card(slot)
         end,
-        avalible_when = function()
+        available_when = function()
             return G.STATE == G.STATES.shop
                 and G.shop and G.shop.jokers
                 and #G.shop.jokers.cards > 0
@@ -138,11 +138,11 @@ local action_registry = {
     },
     sell_joker = {
         execute = function(params)
-            local slot = params and params[1] = 1
+            local slot = params and params[1] or 1
             return input.sell_joker(slot)
         end,
         available_when = function()
-            return G.STATE = G.STATES.shop
+            return G.STATE == G.STATES.shop
                 and G.jokers and #G.jokers.cards > 0
         end,
     },
@@ -151,15 +151,15 @@ local action_registry = {
             return input.reroll_shop()
         end,
         available_when = function()
-            return G.STATE == G.STATE.shop
-                and G.GAME.dollars >= G.Game.current_round.reroll_cost
+            return G.STATE == G.STATES.shop
+                and G.GAME.dollars >= G.GAME.current_round.reroll_cost
         end,
     },
     skip_shop = {
         execute = function(params)
-            return input.ship_shop()
+            return input.skip_shop()
         end,
-        avalible_when = function()
+        available_when = function()
             return G.STATE == G.STATES.shop
         end,
     },

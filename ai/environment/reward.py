@@ -6,7 +6,7 @@ the 300-chip small blind in ante 1. No complex scaling, just core fundamentals.
 """
 
 from typing import Dict, Any
-import global_var
+from .. import global_var
 
 class BalatroRewardCalculator:
     """

@@ -8,6 +8,7 @@ local O = {}
 --- Collects all relevant game information into a structured format
 --- @return table Complete game state data for AI processing
 function O.get_game_state()
+    local utils = require("utils")
     utils.log_comm("DEBUG: current state=" .. tostring(G.STATE) .. " SHOP=" .. tostring(G.STATES.SHOP))
     -- Calculate game_over
     local game_over = 0
@@ -125,8 +126,6 @@ function O.get_current_hand_scoring()
     }
 end
 
-return O
-
 --- Gets the current gold
 function O.get_gold()
     return G.GAME and G.GAME.dollars or 0
@@ -161,3 +160,5 @@ function O.get_shop_items()
     end
     return items
 end
+
+return O
