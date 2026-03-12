@@ -8,6 +8,7 @@ local O = {}
 --- Collects all relevant game information into a structured format
 --- @return table Complete game state data for AI processing
 function O.get_game_state()
+    utils.log_comm("DEBUG: current state=" .. tostring(G.STATE) .. " SHOP=" .. tostring(G.STATES.SHOP))
     -- Calculate game_over
     local game_over = 0
     if G.STATE == G.STATES.GAME_OVER then
@@ -42,6 +43,12 @@ function O.get_game_state()
 
         -- Current seed
         seed = G.GAME and G.GAME.pseudorandom.seed or 0,
+
+        gold = O.get_gold(),
+
+        jokers = O.get_jokers(),
+
+        shop = {items = O.get_shop_items() },
     }
 end
 
@@ -119,3 +126,38 @@ function O.get_current_hand_scoring()
 end
 
 return O
+
+--- Gets the current gold
+function O.get_gold()
+    return G.GAME and G.GAME.dollars or 0
+end
+
+--- Gets the current Jokers
+function O.get_jokers()
+    local jokers = {}
+    if G.jokers and G.jokers.cards then
+        for i, card in ipairs(G.jokers.cards) do
+            table.insert(jokers, {
+                name = card.config.center.name or "Unknown",
+                sell_cost = card.sell_cost or 1,
+                slot = i
+            })
+        end
+    end
+    return jokers
+end
+
+function O.get_shop_items()
+    local items = {}
+    if G.shop and G.shop.jokers and G.shop.jokers.cards then
+        for i, card in ipairs(G.shop.jokers.cards) do
+            table.insert(items, {
+                name = card.config.center.name or "Unknown",
+                cost = card.cost or 999,
+                type = "joker",
+                slot = i
+            })
+        end
+    end
+    return items
+end

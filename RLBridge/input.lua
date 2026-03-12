@@ -97,6 +97,79 @@ function I.discard_hand()
     utils.log_input("select_hand " .. utils.completed_success_msg)
     return { success = true }
 end
+---Used for buying cards in the shop
+function I.buy_card(slot)
+    if not slot or type(slot) -= "number" then
+        return { success = false, error = "Invalid slot parameter" }
+    end
 
+    if not G.shop or not G.shop.jokers or not G.shop.jokers.cards then
+        return { success = false, error = "Shop not avaliable" }
+    end
+
+    if slot < 1 or slot > #G.shop.jokers.cards then
+        return { sucsess = false, error = "Slot index out of bounds: " .. tostring(slot) }
+    end
+
+    local card = G.shop.jokers.cards[slot]
+    if not card then
+        return { success = false, error = "No card in slot: " .. tostring(slot) }
+    end
+
+    if G.GAME.dollars < card.cost then
+        return { success = false, error = "Cannot afford card, cost: " .. tostring(card.cost) }
+    end,
+
+    G.FUNCS.buy_from_shop({ config = {ref_table = card } })
+    utils.log_input("buy_card slot " .. tostring(slot) .. " " .. utils.completed_success_msg)
+    return { success = true }
+end
+
+---For selling a joker
+function I.sell_joker(slot)
+    if not slot or type(slot) ~= "number" then
+        return { success = false, error = "Invalid slot parameter" }
+    end
+
+    if not G.jokers or not G.jokers.cards then
+        return { success = false, error = "No jokers available" }
+    end
+
+    if slot < 1 or slot > #G.jokers.cards then
+        return { success = false, error = "Joker slot out of bounds: " .. tostring(slot) }
+    end
+
+    local card = G.jokers.cards[slot]
+    if not card then
+        return {success = false, error = "No joker in slot: " .. tostring(slot) }
+    end
+
+    card:sell_card()
+    utils.log_input("sell_joker slot " .. tostring(slot) .. " " .. utils.completed_success_msg)
+    return { success = true}
+end
+
+---For rerolling the joker/card options
+function I.reroll_shop()
+    if not G.GAME then
+        return{ success = false, error = "Game not avalible" }
+    end
+
+    local reroll_cost = G.GAME.current_round.reroll_cost or 5
+    if G.GAME.dollars < reroll_cost then
+        return { success = false, error = "Cannot afford reroll, cost: " .. tostring(reroll_cost) }
+    end
+
+    G.FUNCS.reroll_shop()
+    utils.log_input("reroll_shop " .. utils.completed_success_msg)
+    return { success = true }
+end
+
+---for skipping the shop
+function I.skip_shop()
+    G.FUNCS.toggle_shop()
+    utils.log_input("skip_shop " .. utils.completed_success_msg)
+    return { success = true }
+end
 
 return I

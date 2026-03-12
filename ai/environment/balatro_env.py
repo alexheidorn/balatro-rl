@@ -9,6 +9,7 @@ import numpy as np
 from typing import Dict, Any, Tuple, List, Optional
 import logging
 import gymnasium as gym
+import global_var
 from gymnasium import spaces
 
 from ..utils.communication import BalatroPipeIO
@@ -48,17 +49,24 @@ class BalatroEnv(gym.Env):
         # Define Gymnasium spaces
         # Action Spaces; This should describe the type and shape of the action
         # Constants - Core gameplay actions only (SELECT_HAND=1, PLAY_HAND=2, DISCARD_HAND=3)
-        self.MAX_ACTIONS = 3
+        self.MAX_ACTIONS = 8
         self.MAX_CARDS = 8  # Max cards in hand
+        self.MAX_SHOP_SLOTS = 5
+        self.MAX_JOKER_SLOTS = 5
         action_selection = np.array([self.MAX_ACTIONS])
         card_indices = np.array([2] * self.MAX_CARDS) # 8 cards, each can be selected (1) or not (0) #TODO can we or have we already masked card selection?
+        shop_slot = np.array([self.MAX_SHOP_SLOTS])
+        joker_slot = np.array([self.MAX_JOKER_SLOTS])
+
         self.action_space = spaces.MultiDiscrete(np.concatenate([
             action_selection,
-            card_indices
+            card_indices, shop_slot, joker_slot
         ]))
         ACTION_SLICE_LAYOUT = [
             ("action_selection", 1),
-            ("card_indices", self.MAX_CARDS)
+            ("card_indices", self.MAX_CARDS),
+            ("shop_slot", 1),
+            ("joker_slot", 1),
         ]
         slices = self._build_action_slices(ACTION_SLICE_LAYOUT)
         
@@ -75,7 +83,16 @@ class BalatroEnv(gym.Env):
         # Initialize mappers
         self.state_mapper = BalatroStateMapper(observation_size=self.OBSERVATION_SIZE, max_actions=self.MAX_ACTIONS)
         self.action_mapper = BalatroActionMapper(action_slices=slices)
-    
+    def _detect_phase(self, request):
+        current_game_state = request.get('game_state', {})
+        current_game_state_ID = current_game_state.get('state', 0)
+
+        if current_game_state == 3:
+            global_var.isShop = True
+            global_var.isBlind = False
+        else:
+            global_var.isShop = False
+            global_var.isBlind = True
     def reset(self, seed=None, options=None):
         """
         Reset the environment for a new episode
@@ -155,7 +172,8 @@ class BalatroEnv(gym.Env):
             observation = self.state_mapper.process_game_state(self.current_state)
             reward = self.reward_calculator.calculate_reward(
                 current_state=self.current_state,
-                prev_state=self.prev_state if self.prev_state else {}
+                prev_state=self.prev_state or {},
+                phase=self.current_state,
             )
             
             # Auto-send restart command to Balatro
@@ -170,7 +188,8 @@ class BalatroEnv(gym.Env):
             observation = self.state_mapper.process_game_state(self.current_state)
             reward = self.reward_calculator.calculate_reward(
                 current_state=self.current_state,
-                prev_state=self.prev_state if self.prev_state else {}
+                prev_state=self.prev_state or {},
+                phase=self.current_state,
             )
 
             # Save replay
@@ -230,14 +249,14 @@ class BalatroEnv(gym.Env):
         else:
             return np.array([True] * sum(self.action_space.nvec), dtype=bool)
     
-    def _create_action_mask(self, available_actions):
+    def _create_action_mask(self, available_actions, phase, current_game_state):
         """Create action mask for MultiDiscrete space"""
         action_masks = []
         
         # Action selection mask (3 possible actions: SELECT_HAND=1, PLAY_HAND=2, DISCARD_HAND=3)
         # Map Balatro action IDs to AI indices: 1->0, 2->1, 3->2
         action_selection_mask = [False] * self.MAX_ACTIONS
-        balatro_to_ai_mapping = {1: 0, 2: 1, 3: 2}  # SELECT_HAND, PLAY_HAND, DISCARD_HAND
+        balatro_to_ai_mapping = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 7}  # SELECT_HAND, PLAY_HAND, DISCARD_HAND, BUY_CARD, BUY_JOKER, SELL_JOKER, REROLL_SHOP, MOVE_ON
         
         for action_id in available_actions:
             if action_id in balatro_to_ai_mapping:
@@ -245,18 +264,38 @@ class BalatroEnv(gym.Env):
                 action_selection_mask[ai_index] = True
         action_masks.append(action_selection_mask)
         
-        # Card selection masks - context-aware based on available actions
-        if any(action_id in [2, 3] for action_id in available_actions):
-            # PLAY_HAND or DISCARD_HAND available - card params don't matter
-            for _ in range(self.MAX_CARDS):
-                action_masks.append([True, False])  # Force "not selected"
+        if global_var.isShop == True:
+            for i in range(self.MAX_CARDS):
+                self.action_masks.append([True, False])
+            current_shop_items = current_game_state.get('shop', {}).get('items', [])
+            money = current_game_state.get('gold', 0)
+            shop_masks = [False] * self.Max_SHOP_SLOTS
+            for i, item in enumerate(current_shop_items):
+                if i < self.Max_SHOP_SLOTS and item.get('cost', 999) <= money:
+                    shop_masks[i] = True
+            self.action_masks.append(shop_masks)
+
+            avaliable_jokers = current_game_state.get('jokers', [])
+            joker_mask = [False] * self.MAX_JOKER_SLOTS
+            for i in range(min(len(avaliable_jokers), self.MAX_JOKER_SLOTS)):
+                joker_mask[i] = True
+            self.action_masks.append(joker_mask)
+
         else:
-            # Only SELECT_HAND available - allow card selection
-            for _ in range(self.MAX_CARDS):
-                action_masks.append([True, True])
+            # Card selection masks - context-aware based on available actions
+            if any(action_id in [2, 3] for action_id in available_actions):
+                # PLAY_HAND or DISCARD_HAND available - card params don't matter
+                for _ in range(self.MAX_CARDS):
+                    action_masks.append([True, False])  # Force "not selected"
+            else:
+                # Only SELECT_HAND available - allow card selection
+                for _ in range(self.MAX_CARDS):
+                    action_masks.append([True, True])
+
         
         # Flatten for MaskablePPO
-        return [item for sublist in action_masks for item in sublist] 
+        return [item for sublist in action_masks for item in sublist]
+
 
     @staticmethod
     def _build_action_slices(layout: List[Tuple[str, int]]) -> Dict[str, slice]:

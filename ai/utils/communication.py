@@ -24,8 +24,6 @@ class BalatroPipeIO:
 
     def create_pipes(self) -> None:
         if platform.system() == "Windows":
-            # On Windows, named pipes are created via Win32 API
-            # We do this in open_persistent_handles using pywin32
             self.logger.info("Windows: pipes will be created as named pipe server")
             return
         
@@ -80,7 +78,6 @@ class BalatroPipeIO:
         win32pipe.ConnectNamedPipe(self._res_pipe_handle, None)
         self.logger.info("Balatro connected!")
 
-        # Use msvcrt.open_osfhandle instead of the broken GetOSHandle approach
         req_fd = msvcrt.open_osfhandle(int(self._req_pipe_handle), os.O_RDONLY)
         res_fd = msvcrt.open_osfhandle(int(self._res_pipe_handle), os.O_WRONLY)
         self.request_handle = os.fdopen(req_fd, 'r', encoding='utf-8')
@@ -103,7 +100,6 @@ class BalatroPipeIO:
             nonlocal res_fd
             res_fd = os.open(self.response_pipe, os.O_WRONLY)
 
-        # Open both ends concurrently to avoid blocking
         req_thread = threading.Thread(target=open_request)
         res_thread = threading.Thread(target=open_response)
         req_thread.start()
@@ -156,7 +152,6 @@ class BalatroPipeIO:
                     pass
                 setattr(self, handle_name, None)
 
-        # Also close Windows PyHANDLE objects if they exist
         if platform.system() == "Windows":
             for handle_name in ['_req_pipe_handle', '_res_pipe_handle']:
                 h = getattr(self, handle_name, None)

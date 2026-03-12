@@ -6,6 +6,7 @@ the 300-chip small blind in ante 1. No complex scaling, just core fundamentals.
 """
 
 from typing import Dict, Any
+import global_var
 
 class BalatroRewardCalculator:
     """
@@ -27,6 +28,8 @@ class BalatroRewardCalculator:
         self.episode_total_reward = 0
         self.last_seen_hand_type = 'Unknown'  # Store hand type when we see it
         self.winning_chips = 0  # Store chips when blind is defeated
+        self.previous_money = 0
+        self.total_jokers = 0
         
         # Percentage-based reward thresholds (% of blind requirement)
         # Updated to encourage bigger single hands
@@ -35,8 +38,38 @@ class BalatroRewardCalculator:
             "good": 40.0,       # 40-74% of blind requirement (lowered from 50%)
             "decent": 20.0      # 20-39% of blind requirement (lowered from 25%)
         }
+    def calculate_reward(self, current_state, prev_state=None, phase=global_var.isShop):
+        if phase == True:
+            return self.calculate_shop_reward(current_state, prev_state)
+        else:
+            return self.calculate_play_reward(current_state, prev_state)
+    
+    def calculate_shop_reward(self, current_state, prev_state=None):
+        reward = 0.0
+        current_game_state = current_state.get('game_state', {})
+
+        current_money = current_game_state.get('gold', 0)
+        current_jokers = current_state.get('jokers', [])
+        money_spent = self.previous_money - current_money
+
+        if len(current_jokers) > self.total_jokers:
+            reward += 2.0
+
+        if money_spent > 0 and current_money == 0 and len(current_jokers) == self.total_jokers:
+            reward -= 0.5
+
+        retry_count = current_game_state.get('retry_count', 0)
+        if retry_count > 0:
+            reward -= 1.0 * retry_count
         
-    def calculate_reward(self, current_state: Dict[str, Any], 
+        if current_money > 6:
+            reward -= 0.5
+        
+        self.previous_money = current_money
+        self.total_jokers = len(current_jokers)
+
+        return reward
+    def calculate_play_reward(self, current_state: Dict[str, Any], 
                         prev_state: Dict[str, Any] = None) -> float:
         """Simple reward focused on ante 1 small blind success"""
         reward = 0.0
@@ -178,6 +211,8 @@ class BalatroRewardCalculator:
         # Reset game over penalty flag
         if hasattr(self, 'game_over_penalty_applied'):
             delattr(self, 'game_over_penalty_applied')
+        self.previous_money = 0
+        self.total_jokers = 0
 
     def _log_episode_win(self):
         """Log detailed breakdown of winning episode"""

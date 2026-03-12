@@ -1,0 +1,2 @@
+global isShop
+global isBlind

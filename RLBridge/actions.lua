@@ -16,6 +16,12 @@ ACTIONS.START_RUN = 4
 ACTIONS.SELECT_BLIND = 5
 ACTIONS.RESTART_RUN = 6
 
+ACTIONS.BUY_CARD = 7
+ACTIONS.BUY_JOKER = 8
+ACTIONS.SELL_JOKER = 9
+ACTIONS.REROLL_SHOP = 10
+ACTIONS.SKIP_SHOP = 11
+
 -- Action mapping tables
 local ACTION_IDS = {
     select_hand = ACTIONS.SELECT_HAND,
@@ -24,6 +30,10 @@ local ACTION_IDS = {
     start_run = ACTIONS.START_RUN,
     select_blind = ACTIONS.SELECT_BLIND,
     restart_run = ACTIONS.RESTART_RUN,
+    buy_joker = ACTIONS.BUY_JOKER,
+    sell_joker = ACTIONS.SELL_JOKER,
+    reroll_shop = ACTIONS.REROLL_SHOP,
+    skip_shop = ACTIONS.SKIP_SHOP,
 }
 
 local ID_TO_ACTION = {
@@ -33,6 +43,10 @@ local ID_TO_ACTION = {
     [ACTIONS.START_RUN] = "start_run",
     [ACTIONS.SELECT_BLIND] = "select_blind",
     [ACTIONS.RESTART_RUN] = "restart_run",
+    [AACTIONS.BUY_JOKER] = "buy_joker",
+    [ACTIONS.SELL_JOKER] = "sell_joker",
+    [ACTIONS.REROLL_SHOP] = "reroll_shop",
+    [ACTIONS.SKIP_SHOP] = "skip_shop"
 }
 
 -- Centralized action state tracking
@@ -109,6 +123,44 @@ local action_registry = {
         end,
         available_when = function()
             return (G.STATE == G.STATES.GAME_OVER or G.STATE == G.STATES.ROUND_EVAL) and not action_state.restart_run
+        end,
+    },
+    buy_joker = {
+        execute = function(params)
+            local slot = params and params[1] or 1
+            return input.buy_card(slot)
+        end,
+        avalible_when = function()
+            return G.STATE == G.STATES.shop
+                and G.shop and G.shop.jokers
+                and #G.shop.jokers.cards > 0
+        end,
+    },
+    sell_joker = {
+        execute = function(params)
+            local slot = params and params[1] = 1
+            return input.sell_joker(slot)
+        end,
+        available_when = function()
+            return G.STATE = G.STATES.shop
+                and G.jokers and #G.jokers.cards > 0
+        end,
+    },
+    reroll_shop = {
+        execute = function(params)
+            return input.reroll_shop()
+        end,
+        available_when = function()
+            return G.STATE == G.STATE.shop
+                and G.GAME.dollars >= G.Game.current_round.reroll_cost
+        end,
+    },
+    skip_shop = {
+        execute = function(params)
+            return input.ship_shop()
+        end,
+        avalible_when = function()
+            return G.STATE == G.STATES.shop
         end,
     },
 }
