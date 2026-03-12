@@ -5,3 +5,6 @@ stable-baselines3[extra]>=1.6.0  # For RL algorithms
 tensorboard>=2.8.0  # For training visualization
 
 sb3-contrib>=2.7.1 # For additional RL algorithms and tool
+
+# for windows users, you may need to install the following packages:
+pywin32>=305.0  # For Windows-specific functionality
