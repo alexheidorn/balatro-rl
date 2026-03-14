@@ -49,7 +49,7 @@ class BalatroEnv(gym.Env):
         # Define Gymnasium spaces
         # Action Spaces; This should describe the type and shape of the action
         # Constants - Core gameplay actions only (SELECT_HAND=1, PLAY_HAND=2, DISCARD_HAND=3)
-        self.MAX_ACTIONS = 8
+        self.MAX_ACTIONS = 11
         self.MAX_CARDS = 8  # Max cards in hand
         self.MAX_SHOP_SLOTS = 5
         self.MAX_JOKER_SLOTS = 5
@@ -72,7 +72,7 @@ class BalatroEnv(gym.Env):
         
         # Observation space: This should describe the type and shape of the observation
         # Constants
-        self.OBSERVATION_SIZE = 221
+        self.OBSERVATION_SIZE = 224
         self.observation_space = spaces.Box(
             low=-np.inf, # lowest bound of observation data
             high=np.inf, # highest bound of observation data
@@ -87,7 +87,7 @@ class BalatroEnv(gym.Env):
         current_game_state = request.get('game_state', {})
         current_game_state_ID = current_game_state.get('state', 0)
 
-        if current_game_state == 3:
+        if current_game_state_ID == 5:
             global_var.isShop = True
             global_var.isBlind = False
         else:
@@ -119,6 +119,7 @@ class BalatroEnv(gym.Env):
 
         # Process initial state for SB3
         self.current_state = initial_request
+        self._detect_phase(initial_request)
         initial_observation = self.state_mapper.process_game_state(self.current_state)
         
         # Create initial action mask
@@ -164,6 +165,7 @@ class BalatroEnv(gym.Env):
         
         # Update current state
         self.current_state = next_request
+        self._detect_phase(next_request)
         game_state = self.current_state.get('game_state', {})
         
         # Check for game over condition
@@ -200,13 +202,21 @@ class BalatroEnv(gym.Env):
                 score=reward,
                 chips=game_state.get('chips', 0)
             )
-            
-            # Auto-send restart command to Balatro
-            restart_response = {"action": 6, "params": []}
-            self.pipe_io.send_response(restart_response)
-            
-            return observation, reward, True, False, {}
+            cash_out = {"action": 11, "params": []}
+            self.pipe_io.send_response(cash_out)
 
+            next_request = self.pipe_io.wait_for_request()
+            if not next_request:
+                return observation, reward, True, False, {"timeout" : True}
+            
+            self.current_state = next_request
+            self._detect_phase(next_request)
+            observation = self.state_mapper.process_game_state(self.current_state)
+
+            available_actions = next_request.get('available_actions', [])
+            self._action_masks = self._create_action_mask(available_actions, self.current_state)
+
+            return observation, reward, False, False, {}
 
         # Process new state for SB3
         observation = self.state_mapper.process_game_state(self.current_state)
@@ -256,7 +266,19 @@ class BalatroEnv(gym.Env):
         # Action selection mask (3 possible actions: SELECT_HAND=1, PLAY_HAND=2, DISCARD_HAND=3)
         # Map Balatro action IDs to AI indices: 1->0, 2->1, 3->2
         action_selection_mask = [False] * self.MAX_ACTIONS
-        balatro_to_ai_mapping = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 7}  # SELECT_HAND, PLAY_HAND, DISCARD_HAND, BUY_CARD, BUY_JOKER, SELL_JOKER, REROLL_SHOP, MOVE_ON
+        balatro_to_ai_mapping = {
+            1: 0,   # SELECT_HAND
+            2: 1,   # PLAY_HAND
+            3: 2,   # DISCARD_HAND
+            4: 3,   # START_RUN
+            5: 4,   # SELECT_BLIND
+            6: 5,   # RESTART_RUN
+            7: 6,   # BUY_JOKER
+            8: 7,   # SELL_JOKER
+            9: 8,   # REROLL_SHOP
+            10: 9,  # SKIP_SHOP
+            11: 10,  # CASH_OUT
+        }
         
         for action_id in available_actions:
             if action_id in balatro_to_ai_mapping:

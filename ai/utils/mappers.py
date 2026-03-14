@@ -314,10 +314,24 @@ class BalatroActionMapper:
         """
         ai_action = rl_action[self.slices["action_selection"]].tolist()[0]
         
-        ai_to_balatro_mapping = {0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8}  # SELECT_HAND, PLAY_HAND, DISCARD_HAND, BUY_CARD, BUY_JOKER, SELL_JOKER, REROLL_SHOP, MOVE_ON
+        ai_to_balatro_mapping = {
+            1: 0,   # SELECT_HAND
+            2: 1,   # PLAY_HAND
+            3: 2,   # DISCARD_HAND
+            4: 3,   # START_RUN
+            5: 4,   # SELECT_BLIND
+            6: 5,   # RESTART_RUN
+            7: 6,   # BUY_JOKER
+            8: 7,   # SELL_JOKER
+            9: 8,   # REROLL_SHOP
+            10: 9,  # SKIP_SHOP
+            11: 10,  # CASH_OUT
+        }
         balatro_action_id = ai_to_balatro_mapping.get(ai_action, 1)  # Default to SELECT_HAND
+        if balatro_action_id is None:
+            balatro_action_id = 1
         if global_var.isShop == True:
-            params = self.extract_shop_params(rl_action, balatro_action_id)
+            params = self._extract_shop_params(rl_action, balatro_action_id)
         else:
             params = self._extract_select_hand_params(rl_action)
         
@@ -348,10 +362,10 @@ class BalatroActionMapper:
         return [i + 1 for i, val in enumerate(card_indices) if val == 1]
 
     def _extract_shop_params(self, rl_action: np.ndarray, balatro_action_id: int) -> List[int]:
-        if balatro_action_id in [4, 5]:
+        if balatro_action_id == 7:
             shop_slot = rl_action[self.slices["shop_slot"]].tolist()[0]
             return [shop_slot + 1]
-        elif balatro_action_id == 6:
+        elif balatro_action_id == 8:
             joker_slot = rl_action[self.slices["joker_slot"]].tolist()[0]
             return [joker_slot + 1]
         else:

@@ -115,9 +115,11 @@ class BalatroPipeIO:
             self.logger.error("Request handle not open")
             return None
         try:
-            request_line = self.request_handle.readline().strip()
-            if not request_line:
-                return None
+            while True:
+                request_line = self.request_handle.readline().strip()
+                if request_line:
+                    break
+            
             request_data = json.loads(request_line)
             self.logger.debug(f"📥 RECEIVED: {request_line}")
             return request_data

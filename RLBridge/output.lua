@@ -8,8 +8,6 @@ local O = {}
 --- Collects all relevant game information into a structured format
 --- @return table Complete game state data for AI processing
 function O.get_game_state()
-    local utils = require("utils")
-    utils.log_comm("DEBUG: current state=" .. tostring(G.STATE) .. " SHOP=" .. tostring(G.STATES.SHOP))
     -- Calculate game_over
     local game_over = 0
     if G.STATE == G.STATES.GAME_OVER then

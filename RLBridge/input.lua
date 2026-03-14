@@ -171,5 +171,24 @@ function I.skip_shop()
     utils.log_input("skip_shop " .. utils.completed_success_msg)
     return { success = true }
 end
+---for cashing out
+function I.cash_out()
+    if not G.GAME then
+        return { success = false, error = "Game not available" }
+    end
+
+    -- Wrap in pcall to catch the error and log it
+    local ok, err = pcall(function()
+        G.FUNCS.cash_out({ config = {} })
+    end)
+
+    if not ok then
+        utils.log_input("cash_out ERROR: " .. tostring(err))
+        return { success = false, error = tostring(err) }
+    end
+
+    utils.log_input("cash_out " .. utils.completed_success_msg)
+    return { success = true }
+end
 
 return I
