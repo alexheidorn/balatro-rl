@@ -315,17 +315,17 @@ class BalatroActionMapper:
         ai_action = rl_action[self.slices["action_selection"]].tolist()[0]
         
         ai_to_balatro_mapping = {
-            1: 0,   # SELECT_HAND
-            2: 1,   # PLAY_HAND
-            3: 2,   # DISCARD_HAND
-            4: 3,   # START_RUN
-            5: 4,   # SELECT_BLIND
-            6: 5,   # RESTART_RUN
-            7: 6,   # BUY_JOKER
-            8: 7,   # SELL_JOKER
-            9: 8,   # REROLL_SHOP
-            10: 9,  # SKIP_SHOP
-            11: 10,  # CASH_OUT
+            0: 1,   # SELECT_HAND
+            1: 2,   # PLAY_HAND
+            2: 3,   # DISCARD_HAND
+            3: 4,   # START_RUN
+            4: 5,   # SELECT_BLIND
+            5: 6,   # RESTART_RUN
+            6: 7,   # BUY_JOKER
+            7: 8,   # SELL_JOKER
+            8: 9,   # REROLL_SHOP
+            9: 10,  # SKIP_SHOP
+            10: 11, # CASH_OUT
         }
         balatro_action_id = ai_to_balatro_mapping.get(ai_action, 1)  # Default to SELECT_HAND
         if balatro_action_id is None:

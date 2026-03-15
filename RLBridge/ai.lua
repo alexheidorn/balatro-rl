@@ -14,6 +14,7 @@ local last_combined_hash = nil
 local pending_action = nil
 local rl_training_active = false
 local last_key_pressed = nil
+local cash_out_executed = false
 local retry_count = 0
 
 --- Initialize AI system
@@ -62,15 +63,25 @@ function AI.update()
     local current_state = output.get_game_state()
     local available_actions = action.get_available_actions()
 
-    -- Don't continue if state = -1
-    if current_state.state == -1 then
-        return
+    if current_state.state ~= G.STATES.ROUND_EVAL then
+        cash_out_executed = false
     end
 
-    -- Don't continue if there are no actions for the AI to do
-    if next(available_actions) == nil then
-        return
-    end
+    -- Don't continue if state = -1
+        if current_state.state == -1 then
+            return
+        end
+
+        -- Auto-skip MUST come before empty actions check
+        if AI.should_auto_skip(current_state, available_actions) then
+            AI.execute_auto_skip_action(current_state, available_actions)
+            return
+        end
+
+        -- Don't continue if there are no actions for the AI to do
+        if next(available_actions) == nil then
+            return
+        end
 
     -- Create combined hash to detect meaningful changes
     local combined_hash = AI.hash_combined_state(current_state, available_actions)
@@ -182,7 +193,10 @@ function AI.should_auto_skip(current_state, available_actions)
         return true
     end
     
-    -- Don't auto-skip anything else - core actions (1,2,3) go to AI
+     -- Auto-skip ROUND_EVAL - just cash out automatically
+    if current_state.state == G.STATES.ROUND_EVAL and not cash_out_executed then
+        return true
+    end
     
     return false
 end
@@ -191,6 +205,17 @@ end
 --- @param current_state table Current game state
 --- @param available_actions table Available actions list  
 function AI.execute_auto_skip_action(current_state, available_actions)
+    if current_state.state == G.STATES.ROUND_EVAL and not cash_out_executed then
+        local input = require("input")
+        local result = input.cash_out()
+        utils.log_ai("Auto cash_out: " .. (result.success and "success" or result.error))
+        if result.success then
+            cash_out_executed = true
+        end
+        last_combined_hash = nil
+        return
+    end
+    
     local action_id = available_actions[1]
     utils.log_ai("Auto-executing action: " .. action.get_action_name(action_id))
     

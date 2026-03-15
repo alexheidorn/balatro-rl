@@ -167,10 +167,12 @@ local action_registry = {
     },
     cash_out = {
         execute = function(params)
+            utils.log_ai("ROUND_EVAL value = " .. tostring(G.STATES.ROUND_EVAL))
+            utils.log_ai("Current G.STATE = " .. tostring(G.STATE))
             return input.cash_out()
         end,
         available_when = function()
-            return G.STATE == G.STATES.ROUND_EVAL and G.STATE_COMPLETE and not action_state.cash_out
+            return G.STATE == G.STATES.ROUND_EVAL and not action_state.cash_out
         end,
     },
 }
@@ -227,7 +229,7 @@ function ACTIONS.execute_action(action_id, params)
     if action_def and action_def.execute then
         local result = action_def.execute(params)
         if result.success then
-            if action_name == "cash_out" or action_name == "play_hand" or action_name == "discard_hand" then
+            if action_name == "play_hand" or action_name == "discard_hand" then
                 ACTIONS.reset_state()
             else
                 ACTIONS.mark_executed(action_name)

@@ -177,7 +177,6 @@ function I.cash_out()
         return { success = false, error = "Game not available" }
     end
 
-    -- Wrap in pcall to catch the error and log it
     local ok, err = pcall(function()
         G.FUNCS.cash_out({ config = {} })
     end)

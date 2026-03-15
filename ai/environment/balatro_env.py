@@ -162,6 +162,7 @@ class BalatroEnv(gym.Env):
             observation = self.state_mapper.process_game_state(self.current_state)
             reward = 0.0
             return observation, reward, True, False, {"timeout": True}
+        self.logger.info(f"Received request, state: {next_request.get('game_state', {}).get('state', '?')}, actions: {next_request.get('available_actions', [])}")
         
         # Update current state
         self.current_state = next_request
@@ -216,7 +217,7 @@ class BalatroEnv(gym.Env):
             available_actions = next_request.get('available_actions', [])
             self._action_masks = self._create_action_mask(available_actions, self.current_state)
 
-            return observation, reward, False, False, {}
+            return observation, reward, True, False, {}
 
         # Process new state for SB3
         observation = self.state_mapper.process_game_state(self.current_state)
@@ -238,9 +239,16 @@ class BalatroEnv(gym.Env):
         
         info = {}
         
-        # Store action mask for MaskablePPO
-        self._action_masks = action_mask
-        
+        try:
+            available_actions = next_request.get('available_actions', [])
+            action_mask = self._create_action_mask(available_actions, self.current_state)
+            self._action_masks = action_mask
+        except Exception as e:
+            self.logger.error(f"Action mask error: {e}", exc_info=True)
+            self._action_masks = np.ones(sum(self.action_space.nvec), dtype=bool)
+
+
+
         return observation, reward, terminated, truncated, info
 
     def cleanup(self):
@@ -254,10 +262,17 @@ class BalatroEnv(gym.Env):
     # Action Masks for MaskablePPO and for ActionWrapper
     def action_masks(self):
         """Required method for MaskablePPO"""
-        if hasattr(self, '_action_masks'):
-            return np.array(self._action_masks, dtype=bool)
-        else:
-            return np.array([True] * sum(self.action_space.nvec), dtype=bool)
+        if hasattr(self, '_action_masks') and self._action_masks is not None:
+            mask = np.array(self._action_masks, dtype=bool)
+            expected = sum(self.action_space.nvec)
+            assert len(mask) == expected, (
+                f"Mask length {len(mask)} != expected {expected}. "
+                f"isShop={global_var.isShop}, isBlind={global_var.isBlind}"
+            )
+            return mask
+    
+        # Safe fallback: allow all actions
+        return np.ones(sum(self.action_space.nvec), dtype=bool)
     
     def _create_action_mask(self, available_actions, current_game_state):
         """Create action mask for MultiDiscrete space"""
@@ -289,15 +304,16 @@ class BalatroEnv(gym.Env):
         if global_var.isShop == True:
             for i in range(self.MAX_CARDS):
                 action_masks.append([False, False])
-            current_shop_items = current_game_state.get('shop', {}).get('items', [])
-            money = current_game_state.get('gold', 0)
+            inner_state = current_game_state.get('game_state', {})
+            current_shop_items = inner_state.get('shop', {}).get('items', [])
+            money = inner_state.get('gold', 0)
             shop_masks = [False] * self.MAX_SHOP_SLOTS
             for i, item in enumerate(current_shop_items):
                 if i < self.MAX_SHOP_SLOTS and item.get('cost', 999) <= money:
                     shop_masks[i] = True
             action_masks.append(shop_masks)
 
-            avaliable_jokers = current_game_state.get('jokers', [])
+            avaliable_jokers = inner_state.get('jokers', [])
             joker_mask = [False] * self.MAX_JOKER_SLOTS
             for i in range(min(len(avaliable_jokers), self.MAX_JOKER_SLOTS)):
                 joker_mask[i] = True
@@ -317,8 +333,14 @@ class BalatroEnv(gym.Env):
             action_masks.append([False] * self.MAX_JOKER_SLOTS)
 
         
-        # Flatten for MaskablePPO
-        return [item for sublist in action_masks for item in sublist]
+        flat = [item for sublist in action_masks for item in sublist]
+    
+        expected = sum(self.action_space.nvec)
+        assert len(flat) == expected, (
+            f"Built mask of length {len(flat)}, expected {expected}. "
+            f"isShop={global_var.isShop}, num sublists={len(action_masks)}"
+        )
+        return flat
 
 
     @staticmethod
