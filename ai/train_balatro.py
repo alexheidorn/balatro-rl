@@ -28,6 +28,8 @@ from sb3_contrib.common.wrappers import ActionMasker
 # Our custom environment
 from .environment.balatro_env import BalatroEnv
 
+TRAINING_STEPS = 1024  # Total training steps
+
 
 def setup_logging():
     """Setup logging for training"""
@@ -243,7 +245,7 @@ if __name__ == "__main__":
                 print(f"📂 Found checkpoint: {latest_checkpoint}")
         
         model = train_agent(
-            total_timesteps=250000,
+            total_timesteps=TRAINING_STEPS,
             save_path="./models/balatro_trained",
             resume_from=str(latest_checkpoint) if latest_checkpoint else None
         )
