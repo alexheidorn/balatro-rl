@@ -11,10 +11,24 @@ local ACTIONS = {}
 ACTIONS.SELECT_HAND = 1
 ACTIONS.PLAY_HAND = 2
 ACTIONS.DISCARD_HAND = 3
+
+ACTIONS.SELECT_BLIND = 5
+ACTIONS.SKIP_BLIND = 12
+
 -- Auto-executed actions (not exposed to AI)
 ACTIONS.START_RUN = 4
-ACTIONS.SELECT_BLIND = 5
 ACTIONS.RESTART_RUN = 6
+
+-- helper funciton for checking if blind/skip select is ready, 
+-- since it's used in multiple places and has a lot of conditions to check
+local function is_blind_select_ready()
+    return G.STATE == G.STATES.BLIND_SELECT
+        and G.GAME.blind_on_deck ~= nil
+        and G.blind_select
+        and G.blind_select.UIBox
+        and G.blind_select.UIBox.children        -- children must exist
+        and #G.blind_select.UIBox.children > 0   -- and be populated
+end
 
 -- Action mapping tables
 local ACTION_IDS = {
@@ -23,6 +37,7 @@ local ACTION_IDS = {
     discard_hand = ACTIONS.DISCARD_HAND,
     start_run = ACTIONS.START_RUN,
     select_blind = ACTIONS.SELECT_BLIND,
+    skip_blind = ACTIONS.SKIP_BLIND,
     restart_run = ACTIONS.RESTART_RUN,
 }
 
@@ -32,6 +47,7 @@ local ID_TO_ACTION = {
     [ACTIONS.DISCARD_HAND] = "discard_hand",
     [ACTIONS.START_RUN] = "start_run",
     [ACTIONS.SELECT_BLIND] = "select_blind",
+    [ACTIONS.SKIP_BLIND] = "skip_blind",
     [ACTIONS.RESTART_RUN] = "restart_run",
 }
 
@@ -66,7 +82,17 @@ local action_registry = {
             return input.select_blind()
         end,
         available_when = function()
-            return G.STATE == G.STATES.BLIND_SELECT and G.GAME.blind_on_deck ~= nil and not action_state.select_blind
+            return is_blind_select_ready() and not action_state.select_blind
+        end,
+    },
+    skip_blind = {
+        execute = function(params)
+            return input.skip_blind()
+        end,
+        available_when = function()
+            -- Note: Balatro only allows skipping Small/Big, not the Boss blind.
+            -- If you want to enforce that: add `and G.GAME.blind_on_deck ~= "Boss"`
+            return is_blind_select_ready() and not action_state.skip_blind and G.GAME.blind_on_deck ~= "Boss"
         end,
     },
     select_hand = {
