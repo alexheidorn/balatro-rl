@@ -42,6 +42,19 @@ function I.select_blind()
     return { success = true }
 end
 
+function I.skip_blind()
+    local blind_on_deck = G.GAME.blind_on_deck
+    local fake_button = {
+        config = {
+            ref_table = G.P_BLINDS[G.GAME.round_resets.blind_choices[blind_on_deck]],
+            id = blind_on_deck
+        }
+    }
+    G.FUNCS.skip_blind(fake_button)
+    utils.log_input("skip_blind " .. utils.completed_success_msg)
+    return { success = true }
+end
+
 --- Select a hand
 --- Selects the cards based on a table of indexes
 --- @param card_indices table Array of card indices to select
