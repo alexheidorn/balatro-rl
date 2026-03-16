@@ -173,16 +173,10 @@ end
 --- @return boolean True if should auto-skip, false if send to AI
 function AI.should_auto_skip(current_state, available_actions)
     -- Auto-skip START_RUN in menu (action ID = 4)
-    if current_state.state == G.STATES.MENU and #available_actions == 1 and available_actions[1] == 4 then
-        return true
-    end
-    
-    -- Auto-skip SELECT_BLIND in blind selection (action ID = 5)
-    if current_state.state == G.STATES.BLIND_SELECT and #available_actions == 1 and available_actions[1] == 5 
-    -- UI Box safeguard - Ensure blind selection UI is present to avoid skipping if something is wrong
-    and G.blind_select
-    and G.blind_select.UIBox
-    then
+    if current_state.state == G.STATES.MENU 
+    and #available_actions == 1 
+    -- use communicaiton.ACTION.START_RUN instead of 4 to avoid hardcoding. instead of a magic number tis makes this robust to future renumbering
+    and available_actions[1] == communication.ACTIONS.START_RUN then
         return true
     end
     
