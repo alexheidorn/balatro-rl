@@ -42,6 +42,9 @@ function O.get_game_state()
 
         -- Current seed
         seed = G.GAME and G.GAME.pseudorandom.seed or 0,
+
+        -- blind info
+        blind = O.get_blind_info()
     }
 end
 
@@ -115,6 +118,29 @@ function O.get_current_hand_scoring()
         mult = mult,
         score = score,
         handname = handname
+    }
+end
+
+function O.get_blind_info()
+    if G.STATE ~= G.STATES.BLIND_SELECT 
+    or not G.GAME 
+    or not G.GAME.blind_on_deck then
+        return {
+            chips_required = 0,
+            is_boss = 0,
+            tag_name = "none",
+        }
+    end
+
+    local blind_key = G.GAME.round_resets.blind_choices[G.GAME.blind_on_deck]
+    local blind_data = G.P_BLINDS and G.P_BLINDS[blind_key]
+    local tag_key = G.GAME.round_resets.blind_tags 
+                    and G.GAME.round_resets.blind_tags[G.GAME.blind_on_deck]
+
+    return {
+        chips_required = blind_data and blind_data.chips or 0,
+        is_boss        = (G.GAME.blind_on_deck == "Boss") and 1 or 0,
+        tag_name       = tag_key or "none",
     }
 end
 
