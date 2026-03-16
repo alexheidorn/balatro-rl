@@ -48,7 +48,7 @@ class BalatroEnv(gym.Env):
         # Define Gymnasium spaces
         # Action Spaces; This should describe the type and shape of the action
         # Constants - Core gameplay actions only (SELECT_HAND=1, PLAY_HAND=2, DISCARD_HAND=3)
-        self.MAX_ACTIONS = 3
+        self.MAX_ACTIONS = 5
         self.MAX_CARDS = 8  # Max cards in hand
         action_selection = np.array([self.MAX_ACTIONS])
         card_indices = np.array([2] * self.MAX_CARDS) # 8 cards, each can be selected (1) or not (0) #TODO can we or have we already masked card selection?
@@ -64,7 +64,7 @@ class BalatroEnv(gym.Env):
         
         # Observation space: This should describe the type and shape of the observation
         # Constants
-        self.OBSERVATION_SIZE = 216
+        self.OBSERVATION_SIZE = 242 
         self.observation_space = spaces.Box(
             low=-np.inf, # lowest bound of observation data
             high=np.inf, # highest bound of observation data
@@ -237,8 +237,9 @@ class BalatroEnv(gym.Env):
         # Action selection mask (3 possible actions: SELECT_HAND=1, PLAY_HAND=2, DISCARD_HAND=3)
         # Map Balatro action IDs to AI indices: 1->0, 2->1, 3->2
         action_selection_mask = [False] * self.MAX_ACTIONS
-        balatro_to_ai_mapping = {1: 0, 2: 1, 3: 2}  # SELECT_HAND, PLAY_HAND, DISCARD_HAND
-        
+        balatro_to_ai_mapping = {1: 0, 2: 1, 3: 2,  # SELECT_HAND, PLAY_HAND, DISCARD_HAND
+                                 5: 4, 12: 11 # SELECT_BLIND, SKIP_BLIND (if we want to include these in the action space)
+                                }
         for action_id in available_actions:
             if action_id in balatro_to_ai_mapping:
                 ai_index = balatro_to_ai_mapping[action_id]
@@ -246,7 +247,7 @@ class BalatroEnv(gym.Env):
         action_masks.append(action_selection_mask)
         
         # Card selection masks - context-aware based on available actions
-        if any(action_id in [2, 3] for action_id in available_actions):
+        if any(action_id in [2, 3, 5, 12] for action_id in available_actions):
             # PLAY_HAND or DISCARD_HAND available - card params don't matter
             for _ in range(self.MAX_CARDS):
                 action_masks.append([True, False])  # Force "not selected"

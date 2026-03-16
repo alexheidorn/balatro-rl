@@ -71,6 +71,35 @@ def normalize(value: float, max_value: float) -> float:
     return value / max_value if max_value > 0 else 0.0
 
 
+# All tag names available in Balatro for skip rewards.
+# Index 0 is reserved for "none" (no tag / not in blind select state).
+TAG_ENCODING: Dict[str, int] = {
+    "none":              0,
+    "tag_uncommon":      1,
+    "tag_rare":          2,
+    "tag_foil":          3,
+    "tag_holo":          4,
+    "tag_polychrome":    5,
+    "tag_investment":    6,
+    "tag_voucher":       7,
+    "tag_boss":          8,
+    "tag_standard":      9,
+    "tag_charm":         10,
+    "tag_meteor":        11,
+    "tag_buffoon":       12,
+    "tag_handy":         13,
+    "tag_garbage":       14,
+    "tag_ethereal":      15,
+    "tag_coupon":        16,
+    "tag_double":        17,
+    "tag_juggle":        18,
+    "tag_d_six":         19,
+    "tag_topup":         20,
+    "tag_speed":         21,
+    "tag_orbital":       22,
+    "tag_economy":       23,
+}
+NUM_TAGS = len(TAG_ENCODING)  # 24 — used for one-hot size
 
 class BalatroStateMapper:
     """
@@ -214,6 +243,7 @@ class BalatroStateMapper:
         features.append(float(state.get('retry_count', 0)))
         features.extend(self._extract_hand_features(state.get('hand', {})))
         features.extend(self._extract_current_hand_scoring(state.get('current_hand', {})))
+        features.extend(self._extract_blind_info(state.get('blind_info', {})))
 
         return features
 
@@ -233,6 +263,34 @@ class BalatroStateMapper:
         return features
 
 
+    def _extract_blind_info(self, blind_info: Dict[str, Any]) -> List[float]:
+            """
+            Extract blind selection features for the neural network.
+    
+            These features are non-zero only during BLIND_SELECT state; they are
+            all zeros during normal hand-play states, which the model will learn
+            to ignore via the action mask.
+    
+            Produces 26 features:
+                [0]     chips_required  — raw chip target for this blind
+                [1]     is_boss         — 1.0 if this is the Boss blind, else 0.0
+                [2-25]  tag one-hot     — which skip-reward tag is on offer (24 classes)
+    
+            Args:
+                blind_info: blind_info dict from Balatro game state, or {} if absent
+            Returns:
+                List of 26 floats
+            """
+            features = []
+    
+            features.append(float(blind_info.get('chips_required', 0)))
+            features.append(float(blind_info.get('is_boss', 0)))
+    
+            tag_name = blind_info.get('tag_name', 'none') or 'none'
+            tag_index = TAG_ENCODING.get(tag_name.lower(), 0)
+            features.extend(make_onehot(tag_index, NUM_TAGS))  # 24 values
+    
+            return features  # total: 2 + 24 = 26
 
     def _extract_current_hand_scoring(self, current_hand: Dict[str, Any]) -> List[float]:
         """
@@ -290,6 +348,19 @@ class BalatroActionMapper:
     - Action validation
     - JSON response formatting
     """
+
+    _BLIND_ACTIONS = {4: "SELECT_BLIND", 11: "SKIP_BLIND"}  # Optional blind selection actions
+
+    # Map AI indices to Balatro action IDs: 0->1, 1->2, 2->3
+    ai_to_balatro_mapping = {
+        0: 1, # SELECT_HAND,
+        1: 2, # PLAY_HAND
+        2: 3, # DISCARD_HAND
+
+        # Optional blind selection actions if we want to include these in the action space
+        4: 5, # SELECT_BLIND
+        11: 12 , # SKIP_BLIND
+    }
     
     def __init__(self, action_slices: Dict[str, slice]):
         self.slices = action_slices
@@ -313,10 +384,20 @@ class BalatroActionMapper:
         """
         ai_action = rl_action[self.slices["action_selection"]].tolist()[0]
         
-        # Map AI indices to Balatro action IDs: 0->1, 1->2, 2->3
-        ai_to_balatro_mapping = {0: 1, 1: 2, 2: 3}  # SELECT_HAND, PLAY_HAND, DISCARD_HAND
-        balatro_action_id = ai_to_balatro_mapping.get(ai_action, 1)  # Default to SELECT_HAND
+        balatro_action_id = self.ai_to_balatro_mapping.get(ai_action, 1)  # Default to SELECT_HAND
         
+        # Blind actions don't take card params; passing indices would be ignored
+        # by Lua but keeping it clean avoids validator noise.
+        if ai_action in self._BLIND_ACTIONS:
+            params = []
+        else:
+            params = self._extract_select_hand_params(rl_action)
+ 
+        response_data = {
+            "action": balatro_action_id,
+            "params": params,
+        }
+
         response_data = {
             "action": balatro_action_id,
             "params": self._extract_select_hand_params(rl_action),
