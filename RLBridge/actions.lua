@@ -88,7 +88,9 @@ local action_registry = {
             return input.select_blind()
         end,
         available_when = function()
-            return is_blind_select_ready() and not action_state.select_blind
+            return is_blind_select_ready() 
+            and not action_state.select_blind
+            and not action_state.skip_blind -- Can't select blind if we've already skipped
         end,
     },
     skip_blind = {
@@ -98,7 +100,10 @@ local action_registry = {
         available_when = function()
             -- Note: Balatro only allows skipping Small/Big, not the Boss blind.
             -- If you want to enforce that: add `and G.GAME.blind_on_deck ~= "Boss"`
-            return is_blind_select_ready() and not action_state.skip_blind and G.GAME.blind_on_deck ~= "Boss"
+            return is_blind_select_ready() 
+            and not action_state.skip_blind 
+            and not action_state.select_blind -- Can't skip if we've already selected
+            and G.GAME.blind_on_deck ~= "Boss"
         end,
     },
     select_hand = {
