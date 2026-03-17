@@ -72,6 +72,17 @@ function AI.update()
         return
     end
 
+    -- NEW: if we're in BLIND_SELECT but the action isn't available yet
+    -- (i.e. is_blind_select_ready() is still false), silently wait.
+    -- Don't update the hash, don't send to AI, don't do anything.
+    if current_state.state == G.STATES.BLIND_SELECT 
+    and next(available_actions) ~= nil
+    and available_actions[1] == ACTIONS.SELECT_BLIND
+    and not action.is_action_available("select_blind") then
+        utils.log_ai("Waiting for blind select UI to be ready...")
+        return
+    end
+
     -- Create combined hash to detect meaningful changes
     local combined_hash = AI.hash_combined_state(current_state, available_actions)
 

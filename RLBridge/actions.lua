@@ -22,12 +22,18 @@ ACTIONS.RESTART_RUN = 6
 -- helper funciton for checking if blind/skip select is ready, 
 -- since it's used in multiple places and has a lot of conditions to check
 local function is_blind_select_ready()
-    return G.STATE == G.STATES.BLIND_SELECT
-        and G.GAME.blind_on_deck ~= nil
-        and G.blind_select
-        and G.blind_select.UIBox
-        and G.blind_select.UIBox.children        -- children must exist
-        and #G.blind_select.UIBox.children > 0   -- and be populated
+    if G.STATE ~= G.STATES.BLIND_SELECT then return false end
+    if not G.GAME or not G.GAME.blind_on_deck then return false end
+
+    -- G.blind_select_opts is populated by Balatro after the blind choice
+    -- buttons are fully built — safer than checking UIBox children
+    if not G.blind_select_opts then return false end
+
+    -- Confirm the actual blind choice entry exists and is populated
+    local blind_key = G.GAME.round_resets.blind_choices[G.GAME.blind_on_deck]
+    if not blind_key or not G.P_BLINDS[blind_key] then return false end
+
+    return true
 end
 
 -- Action mapping tables
