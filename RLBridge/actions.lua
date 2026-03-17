@@ -33,6 +33,9 @@ local function is_blind_select_ready()
     local blind_key = G.GAME.round_resets.blind_choices[G.GAME.blind_on_deck]
     if not blind_key or not G.P_BLINDS[blind_key] then return false end
 
+    local key = string.lower(G.GAME.blind_on_deck)
+    if not G.blind_select_opts[key] then return false end  -- No real button
+
     return true
 end
 
@@ -102,7 +105,7 @@ local action_registry = {
             -- If you want to enforce that: add `and G.GAME.blind_on_deck ~= "Boss"`
             return is_blind_select_ready() 
             and not action_state.skip_blind 
-            and not action_state.select_blind -- Can't skip if we've already selected
+            and not action_state.select_blind
             and G.GAME.blind_on_deck ~= "Boss"
         end,
     },
