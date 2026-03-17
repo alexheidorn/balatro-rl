@@ -77,7 +77,7 @@ function AI.update()
     -- Don't update the hash, don't send to AI, don't do anything.
     if current_state.state == G.STATES.BLIND_SELECT 
     and next(available_actions) ~= nil
-    and available_actions[1] == ACTIONS.SELECT_BLIND
+    and available_actions[1] == action.SELECT_BLIND
     and not action.is_action_available("select_blind") then
         utils.log_ai("Waiting for blind select UI to be ready...")
         return
@@ -187,7 +187,7 @@ function AI.should_auto_skip(current_state, available_actions)
     if current_state.state == G.STATES.MENU 
     and #available_actions == 1 
     -- use communicaiton.ACTION.START_RUN instead of 4 to avoid hardcoding. instead of a magic number tis makes this robust to future renumbering
-    and available_actions[1] == communication.ACTIONS.START_RUN then
+    and available_actions[1] == action.START_RUN then
         return true
     end
     
