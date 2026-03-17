@@ -358,8 +358,8 @@ class BalatroActionMapper:
         2: 3, # DISCARD_HAND
 
         # Optional blind selection actions if we want to include these in the action space
-        4: 5, # SELECT_BLIND
-        11: 12 , # SKIP_BLIND
+        3: 5, # SELECT_BLIND
+        4: 12 , # SKIP_BLIND
     }
     
     def __init__(self, action_slices: Dict[str, slice]):
