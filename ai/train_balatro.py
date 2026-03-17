@@ -126,8 +126,14 @@ def train_agent(total_timesteps=100000, save_path="./models/balatro_final", resu
         env = create_environment()
         
         if resume_from and Path(resume_from).exists():
-            logger.info(f"Resuming training from: {resume_from}")
-            model = MaskablePPO.load(resume_from, env=env, tensorboard_log="./tensorboard_logs/")
+            try:
+                logger.info(f"Resuming training from: {resume_from}")
+                model = MaskablePPO.load(resume_from, env=env, tensorboard_log="./tensorboard_logs/")
+            except Exception as e:
+                logger.warming(f"Failed to load model from {resume_from}: {e}")
+                logger.info("Starting training from scratch")
+                Path(resume_from).rename(resume_from + ".corrupted")
+                model = create_model(env)
         else:
             logger.info("Starting training from scratch")
             model = create_model(env)
