@@ -238,7 +238,7 @@ class BalatroEnv(gym.Env):
         # Map Balatro action IDs to AI indices: 1->0, 2->1, 3->2
         action_selection_mask = [False] * self.MAX_ACTIONS
         balatro_to_ai_mapping = {1: 0, 2: 1, 3: 2,  # SELECT_HAND, PLAY_HAND, DISCARD_HAND
-                                 5: 4, 12: 11 # SELECT_BLIND, SKIP_BLIND (if we want to include these in the action space)
+                                 5: 3, 12: 4 # SELECT_BLIND, SKIP_BLIND (if we want to include these in the action space)
                                 }
         for action_id in available_actions:
             if action_id in balatro_to_ai_mapping:
