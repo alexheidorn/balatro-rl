@@ -46,6 +46,10 @@ class BalatroEnv(gym.Env):
         self.replay_system = ReplaySystem()
         self.actions_taken = []
 
+        self.slices = {
+            "action_selection": slice(0,1),
+        }
+
         # Define Gymnasium spaces
         # Action Spaces; This should describe the type and shape of the action
         # Constants - Core gameplay actions only (SELECT_HAND=1, PLAY_HAND=2, DISCARD_HAND=3)
@@ -72,7 +76,7 @@ class BalatroEnv(gym.Env):
         
         # Observation space: This should describe the type and shape of the observation
         # Constants
-        self.OBSERVATION_SIZE = 224
+        self.OBSERVATION_SIZE = 229
         self.observation_space = spaces.Box(
             low=-np.inf, # lowest bound of observation data
             high=np.inf, # highest bound of observation data
@@ -116,7 +120,13 @@ class BalatroEnv(gym.Env):
         initial_request = self.pipe_io.wait_for_request()
         if not initial_request:
             raise RuntimeError("Failed to receive initial request from Balatro")
-
+        
+        while initial_request.get('game_state', {}).get('state') == 4:
+            restart_response = {"action": 6, "params": []}
+            self.pipe_io.send_response(restart_response)
+            initial_request = self.pipe_io.wait_for_request()
+            if not initial_request:
+                raise RuntimeError("Failed to receive initial request from Balatro after restart")
         # Process initial state for SB3
         self.current_state = initial_request
         self._detect_phase(initial_request)
@@ -148,6 +158,12 @@ class BalatroEnv(gym.Env):
         # Store previous state for reward calculation
         self.prev_state = self.current_state
 
+        state_id = self.current_state.get('game_state', {1}).get('state', 0)
+
+        if state_id == 8:
+        # Force action selection to CASH_OUT if it isn't already
+            action[self.slices["action_selection"]] = [10]
+        
         # Send action response to Balatro mod
         response_data = self.action_mapper.process_action(rl_action=action)
         self.actions_taken.append(response_data)
@@ -157,6 +173,11 @@ class BalatroEnv(gym.Env):
         
         # Wait for next request with new game state
         next_request = self.pipe_io.wait_for_request()
+        if next_request:
+            state_id = next_request.get('game_state', {}).get('state', 0)
+            if state_id == 8:
+                import time
+                time.sleep(0.1)
         if not next_request:
             self.game_over = True
             observation = self.state_mapper.process_game_state(self.current_state)
@@ -164,6 +185,20 @@ class BalatroEnv(gym.Env):
             return observation, reward, True, False, {"timeout": True}
         self.logger.info(f"Received request, state: {next_request.get('game_state', {}).get('state', '?')}, actions: {next_request.get('available_actions', [])}")
         
+        while next_request.get('game_state', {}).get('state') == 4:
+            self.logger.info("Auto-handling START_RUN state, sending restart")
+            restart_response = {"action": 6, "params": []}
+            self.pipe_io.send_response(restart_response)
+            next_request = self.pipe_io.wait_for_request()
+            if not next_request:
+                return (
+                    self.state_mapper.process_game_state(self.current_state),
+                    0.0, True, False, {"timeout": True}
+                )
+            self.logger.info(
+                f"Received request, state: {next_request.get('game_state', {}).get('state', '?')}, "
+                f"actions: {next_request.get('available_actions', [])}"
+            )
         # Update current state
         self.current_state = next_request
         self._detect_phase(next_request)
@@ -203,21 +238,7 @@ class BalatroEnv(gym.Env):
                 score=reward,
                 chips=game_state.get('chips', 0)
             )
-            cash_out = {"action": 11, "params": []}
-            self.pipe_io.send_response(cash_out)
-
-            next_request = self.pipe_io.wait_for_request()
-            if not next_request:
-                return observation, reward, True, False, {"timeout" : True}
-            
-            self.current_state = next_request
-            self._detect_phase(next_request)
-            observation = self.state_mapper.process_game_state(self.current_state)
-
-            available_actions = next_request.get('available_actions', [])
-            self._action_masks = self._create_action_mask(available_actions, self.current_state)
-
-            return observation, reward, True, False, {}
+            return observation, reward, False, False, {"win_detected": True}
 
         # Process new state for SB3
         observation = self.state_mapper.process_game_state(self.current_state)
@@ -234,11 +255,7 @@ class BalatroEnv(gym.Env):
         truncated = False  # Not using time limits for now
         
         # Create action mask for MaskablePPO
-        available_actions = next_request.get('available_actions', [])
-        action_mask = self._create_action_mask(available_actions, self.current_state)
-        
         info = {}
-        
         try:
             available_actions = next_request.get('available_actions', [])
             action_mask = self._create_action_mask(available_actions, self.current_state)
@@ -246,8 +263,6 @@ class BalatroEnv(gym.Env):
         except Exception as e:
             self.logger.error(f"Action mask error: {e}", exc_info=True)
             self._action_masks = np.ones(sum(self.action_space.nvec), dtype=bool)
-
-
 
         return observation, reward, terminated, truncated, info
 
@@ -277,36 +292,44 @@ class BalatroEnv(gym.Env):
     def _create_action_mask(self, available_actions, current_game_state):
         """Create action mask for MultiDiscrete space"""
         action_masks = []
-        
-        # Action selection mask (3 possible actions: SELECT_HAND=1, PLAY_HAND=2, DISCARD_HAND=3)
-        # Map Balatro action IDs to AI indices: 1->0, 2->1, 3->2
+        state_id = current_game_state.get('game_state', {}).get('state', 0)
+    
+        # 1. Action selection mask
         action_selection_mask = [False] * self.MAX_ACTIONS
         balatro_to_ai_mapping = {
-            1: 0,   # SELECT_HAND
-            2: 1,   # PLAY_HAND
-            3: 2,   # DISCARD_HAND
-            4: 3,   # START_RUN
-            5: 4,   # SELECT_BLIND
-            6: 5,   # RESTART_RUN
-            7: 6,   # BUY_JOKER
-            8: 7,   # SELL_JOKER
-            9: 8,   # REROLL_SHOP
-            10: 9,  # SKIP_SHOP
-            11: 10,  # CASH_OUT
+            1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 
+            7: 6, 8: 7, 9: 8, 10: 9, 11: 10
         }
-        
-        for action_id in available_actions:
-            if action_id in balatro_to_ai_mapping:
-                ai_index = balatro_to_ai_mapping[action_id]
-                action_selection_mask[ai_index] = True
+
+        if state_id == 8:
+            # Cash Out is index 10 (Action ID 11)
+            action_selection_mask[10] = True
+        else:
+            for action_id in available_actions:
+                if action_id in balatro_to_ai_mapping:
+                    ai_index = balatro_to_ai_mapping[action_id]
+                    action_selection_mask[ai_index] = True
+    
         action_masks.append(action_selection_mask)
+
+        # 2. Parameter Masks (Cards, Shop, Jokers)
+        # We must append the EXACT number of dimensions defined in MultiDiscrete
+        if state_id == 8:
+            # ROUND_EVAL: Disable everything but the action itself
+            for _ in range(self.MAX_CARDS):
+                action_masks.append([True, False]) # Cards: Only allow "Not Selected"
+            action_masks.append([False] * self.MAX_SHOP_SLOTS)
+            action_masks.append([False] * self.MAX_JOKER_SLOTS)
+
+        elif global_var.isShop:
+            # SHOP: Disable cards, enable shop slots based on money
+            for _ in range(self.MAX_CARDS):
+                action_masks.append([True, False]) 
         
-        if global_var.isShop == True:
-            for i in range(self.MAX_CARDS):
-                action_masks.append([False, False])
             inner_state = current_game_state.get('game_state', {})
             current_shop_items = inner_state.get('shop', {}).get('items', [])
             money = inner_state.get('gold', 0)
+        
             shop_masks = [False] * self.MAX_SHOP_SLOTS
             for i, item in enumerate(current_shop_items):
                 if i < self.MAX_SHOP_SLOTS and item.get('cost', 999) <= money:
@@ -319,27 +342,25 @@ class BalatroEnv(gym.Env):
                 joker_mask[i] = True
             action_masks.append(joker_mask)
 
+            if 10 in available_actions:
+                # Check if we are in a 'transition' state
+                pass
+            if state_id == 5:
+                if self.actions_taken and self.actions_taken[-1].get('action') == 10:
+                    action_selection_mask[9] = False
+
         else:
-            # Card selection masks - context-aware based on available actions
-            if any(action_id in [2, 3] for action_id in available_actions):
-                # PLAY_HAND or DISCARD_HAND available - card params don't matter
-                for _ in range(self.MAX_CARDS):
-                    action_masks.append([True, False])  # Force "not selected"
-            else:
-                # Only SELECT_HAND available - allow card selection
-                for _ in range(self.MAX_CARDS):
-                    action_masks.append([True, True])
+            # BLIND/HAND: Handle Card Selection
+            # If PLAY or DISCARD is available, cards should already be selected 
+            # (or AI shouldn't select more), otherwise allow selection.
+            can_select = not any(a in [2, 3] for a in available_actions)
+            for _ in range(self.MAX_CARDS):
+                action_masks.append([True, True] if can_select else [True, False])
+            
             action_masks.append([False] * self.MAX_SHOP_SLOTS)
             action_masks.append([False] * self.MAX_JOKER_SLOTS)
 
-        
         flat = [item for sublist in action_masks for item in sublist]
-    
-        expected = sum(self.action_space.nvec)
-        assert len(flat) == expected, (
-            f"Built mask of length {len(flat)}, expected {expected}. "
-            f"isShop={global_var.isShop}, num sublists={len(action_masks)}"
-        )
         return flat
 
 

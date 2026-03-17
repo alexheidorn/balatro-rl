@@ -17,6 +17,9 @@ local last_key_pressed = nil
 local cash_out_executed = false
 local retry_count = 0
 
+--For Mr.Bones
+local mr_bones_cashed_out = false
+
 --- Initialize AI system
 --- Sets up communication and prepares the AI for operation
 --- @return nil
@@ -65,6 +68,8 @@ function AI.update()
 
     if current_state.state ~= G.STATES.ROUND_EVAL then
         cash_out_executed = false
+        mr_bones_cashed_out = false
+        last_combined_hash = nil
     end
 
     -- Don't continue if state = -1
@@ -75,6 +80,7 @@ function AI.update()
         -- Auto-skip MUST come before empty actions check
         if AI.should_auto_skip(current_state, available_actions) then
             AI.execute_auto_skip_action(current_state, available_actions)
+            last_combined_hash = AI.hash_combined_state(output.get_game_state(), action.get_available_actions())
             return
         end
 
@@ -94,16 +100,18 @@ function AI.update()
 
         action.reset_state()
 
-        -- Auto-skip trivial actions (don't send to AI)
+        -- CRITICAL FIX: If we auto-skip, do NOT request an action from the AI
         if AI.should_auto_skip(current_state, available_actions) then
             AI.execute_auto_skip_action(current_state, available_actions)
-            return
+            -- Update the hash so we don't trigger again until the NEXT change
+            last_combined_hash = AI.hash_combined_state(output.get_game_state(), action.get_available_actions())
+            return -- EXIT HERE
         end
 
         -- Add retry_count to current state
         current_state.retry_count = retry_count
         
-        -- Request action from AI (only for core gameplay)
+        -- Request action from AI (only if NOT auto-skipped)
         local ai_response = communication.request_action(current_state, available_actions)
 
         if ai_response then
@@ -130,6 +138,7 @@ function AI.update()
                 utils.log_ai("Action executed successfully: " .. pending_action.action)
                 retry_count = 0  -- Reset retry count on success
                 pending_action = nil
+                last_combined_hash = AI.hash_combined_state(output.get_game_state(), action.get_available_actions())
                 utils.log_ai("\n\n\n")
             else
                 utils.log_ai("Action failed: " .. (result.error or "Unknown error"))
@@ -156,13 +165,16 @@ end
 function AI.hash_combined_state(game_state, available_actions)
     -- State components
     local state_parts = {
+        G.STATE or 0,
         game_state.state or 0,
+        game_state.gold or 0,
         game_state.chips or 0,
         game_state.blind_chips or 0,
         (game_state.round and game_state.round.hands_left) or 0,
         (game_state.round and game_state.round.discards_left) or 0,
         (game_state.hand and game_state.hand.size) or 0,
         (game_state.hand and game_state.hand.highlighted_count) or 0,
+        (game_state.shop and #game_state.shop.items) or 0,
         game_state.game_over or 0
     }
 
@@ -193,11 +205,32 @@ function AI.should_auto_skip(current_state, available_actions)
         return true
     end
     
-     -- Auto-skip ROUND_EVAL - just cash out automatically
-    if current_state.state == G.STATES.ROUND_EVAL and not cash_out_executed then
+    -- Auto-skip ROUND_EVAL
+    if current_state.state == G.STATES.ROUND_EVAL then
+        local is_busy = false
+        if G.CONTROLLER and G.CONTROLLER.queue and G.CONTROLLER.locks then
+            local queue_size = #G.CONTROLLER.queue
+            local locks_size = 0
+            for _ in pairs(G.CONTROLLER.locks) do locks_size = locks_size + 1 end
+    
+            if queue_size > 0 or locks_size > 0 then
+                is_busy = true
+            end
+        end
+
+        if is_busy then 
+            return false 
+        end
+    
+        if #available_actions > 0 and not cash_out_executed then
+            return true
+        end
+    end
+
+    if AI.is_mr_bones_screen() then
         return true
     end
-    
+
     return false
 end
 
@@ -205,14 +238,28 @@ end
 --- @param current_state table Current game state
 --- @param available_actions table Available actions list  
 function AI.execute_auto_skip_action(current_state, available_actions)
-    if current_state.state == G.STATES.ROUND_EVAL and not cash_out_executed then
+    if AI.is_mr_bones_screen() then
+        if not mr_bones_cashed_out then
+            local ok, err = pcall(function() G.FUNCS.cash_out({ config = {} }) end)
+            if ok then
+                utils.log_ai("Auto cash_out (Mr. Bones): success")
+                mr_bones_cashed_out = true
+                cash_out_executed = false
+            else
+                utils.log_ai("Auto cash_out (Mr. Bones) ERROR: " .. tostring(err))
+            end
+            last_combined_hash = nil
+        end
+        return
+    end
+
+    if current_state.state == G.STATES.ROUND_EVAL then
         local input = require("input")
         local result = input.cash_out()
         utils.log_ai("Auto cash_out: " .. (result.success and "success" or result.error))
         if result.success then
             cash_out_executed = true
         end
-        last_combined_hash = nil
         return
     end
     
@@ -228,6 +275,20 @@ function AI.execute_auto_skip_action(current_state, available_actions)
     
     -- Force state recheck after auto-execution
     last_combined_hash = nil
+end
+
+function AI.is_mr_bones_screen()
+    -- Mr. Bones triggers ROUND_EVAL with $0 payout and is present in jokers
+    if G.STATE ~= G.STATES.ROUND_EVAL then return false end
+    if not (G.GAME and G.GAME.blind and G.GAME.blind.dollars == 0) then return false end
+    if not (G.jokers and G.jokers.cards) then return false end
+    for _, card in ipairs(G.jokers.cards) do
+        if card.config and card.config.center and
+           card.config.center.key == "j_mr_bones" then
+            return true
+        end
+    end
+    return false
 end
 
 return AI

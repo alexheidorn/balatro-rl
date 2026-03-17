@@ -213,11 +213,22 @@ class BalatroStateMapper:
         features.append(float(state.get('game_over', 0)))
         features.append(float(state.get('game_win', 0)))
         features.append(float(state.get('retry_count', 0)))
+        features.extend(self._extract_joker_features(state.get('jokers', [])))
         features.extend(self._extract_hand_features(state.get('hand', {})))
         features.extend(self._extract_current_hand_scoring(state.get('current_hand', {})))
 
         return features
 
+    def _extract_joker_features(self, jokers: List[Dict[str, Any]]) -> List[float]:
+        features = []
+        max_jokers = 5
+        for i in range(max_jokers):
+            if i < len(jokers):
+                # At minimum, map the Joker's internal ID or a one-hot of the name
+                features.append(1.0) # Slot occupied
+            else:
+                features.append(0.0) # Slot empty
+        return features
     
     def _extract_round_features(self, round: Dict[str, Any]) -> List[float]:
         """
