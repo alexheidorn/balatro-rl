@@ -44,13 +44,47 @@ end
 
 function I.skip_blind()
     local blind_on_deck = G.GAME.blind_on_deck
-    local fake_button = {
-        config = {
-            ref_table = G.P_BLINDS[G.GAME.round_resets.blind_choices[blind_on_deck]],
-            id = blind_on_deck
-        }
-    }
-    G.FUNCS.skip_blind(fake_button)
+    local skip_to = blind_on_deck == 'Small' and 'Big' 
+                    or blind_on_deck == 'Big' and 'Boss' 
+                    or 'Boss'
+
+    -- Replicate skip_blind internals without needing UIBox
+    stop_use()
+    G.GAME.skips = (G.GAME.skips or 0) + 1
+
+    -- Award tag if one exists for this blind
+    local tag_key = G.GAME.round_resets.blind_tags 
+                    and G.GAME.round_resets.blind_tags[blind_on_deck]
+    if tag_key then
+        local tag = G.P_TAGS[tag_key]
+        if tag then add_tag(tag) end
+    end
+
+    -- Update blind states
+    G.GAME.round_resets.blind_states[blind_on_deck] = 'Skipped'
+    G.GAME.round_resets.blind_states[skip_to] = 'Select'
+    G.GAME.blind_on_deck = skip_to
+
+    play_sound('generic1')
+
+    G.E_MANAGER:add_event(Event({
+        trigger = 'immediate',
+        func = function()
+            delay(0.3)
+            for i = 1, #G.jokers.cards do
+                G.jokers.cards[i]:calculate_joker({skip_blind = true})
+            end
+            save_run()
+            for i = 1, #G.GAME.tags do
+                G.GAME.tags[i]:apply_to_run({type = 'immediate'})
+            end
+            for i = 1, #G.GAME.tags do
+                if G.GAME.tags[i]:apply_to_run({type = 'new_blind_choice'}) then break end
+            end
+            return true
+        end
+    }))
+
     utils.log_input("skip_blind " .. utils.completed_success_msg)
     return { success = true }
 end
