@@ -20,6 +20,9 @@ local retry_count = 0
 --For Mr.Bones
 local mr_bones_cashed_out = false
 
+local state_transition_timer = 0
+local COOLDOWN_TIME = 1.5
+
 --- Initialize AI system
 --- Sets up communication and prepares the AI for operation
 --- @return nil
@@ -45,7 +48,15 @@ end
 --- Monitors game state changes, handles communication, and executes AI actions
 --- @return nil
 function AI.update()
+    if G.CONTROLLER.locking_buttons or G.CONTROLLER.interrupt_inputs or G.CONTROLLER.locks[1] then
+        return 
+    end
     -- Check for key press to start/stop RL training
+    if state_transition_timer > 0 then
+        state_transition_timer = state_transition_timer - (G.FPS_CAP and (1/G.FPS_CAP) or 0.016)
+        return -- Exit early, we are in cooldown
+    end
+
     if last_key_pressed then
         if last_key_pressed == "r" then
             if not rl_training_active then
@@ -136,6 +147,11 @@ function AI.update()
             local result = action.execute_action(pending_action.action, pending_action.params)
             if result.success then
                 utils.log_ai("Action executed successfully: " .. pending_action.action)
+                if pending_action.action == 11 or current_state.state == G.STATES.ROUND_EVAL then
+                    state_transition_timer = 1.5 
+                else
+                    state_transition_timer = 0.05 -- Minimal delay (just enough to prevent frame-doubling)
+                end
                 retry_count = 0  -- Reset retry count on success
                 pending_action = nil
                 last_combined_hash = AI.hash_combined_state(output.get_game_state(), action.get_available_actions())
@@ -163,6 +179,9 @@ end
 --- @param available_actions table Available actions list
 --- @return string Combined hash representing state + actions
 function AI.hash_combined_state(game_state, available_actions)
+    if not game_state or (G.STATE == G.STATES.SHOP and not G.shop) then
+        return "WAITING"
+    end
     -- State components
     local state_parts = {
         G.STATE or 0,
@@ -259,6 +278,7 @@ function AI.execute_auto_skip_action(current_state, available_actions)
         utils.log_ai("Auto cash_out: " .. (result.success and "success" or result.error))
         if result.success then
             cash_out_executed = true
+            state_transition_timer = COOLDOWN_TIME
         end
         return
     end
