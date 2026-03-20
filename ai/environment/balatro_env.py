@@ -144,7 +144,23 @@ class BalatroEnv(gym.Env):
             observation = self.state_mapper.process_game_state(self.current_state)
             reward = 0.0
             return observation, reward, True, False, {"timeout": True}
+        self.logger.info(f"Received request, state: {next_request.get('game_state', {}).get('state', '?')}, actions: {next_request.get('available_actions', [])}")
         
+        while next_request.get('game_state', {}).get('state') == 4:
+            self.logger.info("Auto-handling START_RUN state, sending restart")
+            restart_response = {"action": 6, "params": []}
+            self.pipe_io.send_response(restart_response)
+            next_request = self.pipe_io.wait_for_request()
+            if not next_request:
+                return (
+                    self.state_mapper.process_game_state(self.current_state),
+                    0.0, True, False, {"timeout": True}
+                )
+            self.logger.info(
+                f"Received request, state: {next_request.get('game_state', {}).get('state', '?')}, "
+                f"Available actions: {next_request.get('available_actions', [])}"
+            )
+
         # Update current state
         self.current_state = next_request
         game_state = self.current_state.get('game_state', {})
