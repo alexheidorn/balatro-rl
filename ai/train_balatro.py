@@ -31,14 +31,18 @@ from .environment.balatro_env import BalatroEnv
 
 def setup_logging():
     """Setup logging for training"""
+    env_logger = logging.getLogger('ai.environment.balatro_env')
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler('training.log'),
-            logging.StreamHandler()
+
         ]
     )
+    console = logging.StreamHandler()
+    console.setLevel(logging.WARNING)
+    logging.getLogger('').addHandler(console)
 
 
 def mask_fn(env):
@@ -187,7 +191,7 @@ def test_trained_model(model_path, num_episodes=5):
     
     # Create environment and load model
     env = create_environment()
-    model = DQN.load(model_path)
+    model = MaskablePPO.load(model_path)
     
     episode_rewards = []
     

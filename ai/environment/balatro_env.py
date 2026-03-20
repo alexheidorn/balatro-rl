@@ -282,7 +282,6 @@ class BalatroEnv(gym.Env):
             expected = sum(self.action_space.nvec)
             assert len(mask) == expected, (
                 f"Mask length {len(mask)} != expected {expected}. "
-                f"isShop={global_var.isShop}, isBlind={global_var.isBlind}"
             )
             return mask
     
@@ -308,6 +307,11 @@ class BalatroEnv(gym.Env):
             for action_id in available_actions:
                 if action_id in balatro_to_ai_mapping:
                     ai_index = balatro_to_ai_mapping[action_id]
+                    action_selection_mask[ai_index] = True
+                
+                if global_var.isShop and ai_index in [8,9]:
+                    action_selection_mask[ai_index] = False
+                else:
                     action_selection_mask[ai_index] = True
     
         action_masks.append(action_selection_mask)
