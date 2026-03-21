@@ -15,6 +15,8 @@ local pending_action = nil
 local rl_training_active = false
 local last_key_pressed = nil
 local retry_count = 0
+-- Configurable auto-skip for blind selection (can be enabled/disabled as needed)
+local blind_select_auto_skip_enabled = true
 
 --- Initialize AI system
 --- Sets up communication and prepares the AI for operation
@@ -178,7 +180,9 @@ function AI.should_auto_skip(current_state, available_actions)
     end
     
     -- Auto-skip SELECT_BLIND in blind selection (action ID = 5)
-    if current_state.state == G.STATES.BLIND_SELECT and #available_actions == 1 and available_actions[1] == 5 then
+    if current_state.state == G.STATES.BLIND_SELECT and #available_actions == 1 and available_actions[1] == 5 
+    and blind_select_auto_skip_enabled
+    then
         return true
     end
     
