@@ -227,6 +227,10 @@ function AI.should_auto_skip(current_state, available_actions)
     if current_state.state == G.STATES.BLIND_SELECT and #available_actions == 1 and available_actions[1] == 5 then
         return true
     end
+
+    if current_state.state == G.STATES.GAME_OVER then
+        return false
+    end
     
     -- Auto-skip ROUND_EVAL
     if current_state.state == G.STATES.ROUND_EVAL then
@@ -290,7 +294,12 @@ function AI.execute_auto_skip_action(current_state, available_actions)
     local action_id = available_actions[1]
     utils.log_ai("Auto-executing action: " .. action.get_action_name(action_id))
     
-    local result = action.execute_action(action_id, {})
+    local exec_params = {}
+    --Chnage this to change the seed
+    if action_id == 4 then 
+        exec_params.seed = "JFKGEEMG"
+    end
+    local result = action.execute_action(action_id, exec_params)
     if result.success then
         utils.log_ai("Auto-execution successful: " .. action.get_action_name(action_id))
     else

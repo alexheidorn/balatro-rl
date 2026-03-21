@@ -121,7 +121,11 @@ local action_registry = {
     },
     restart_run = {
         execute = function(params)
-            return input.start_run()
+            utils.log_input("restart_run execute called, params: " .. tostring(params))
+            if params then
+                utils.log_input("params.seed = " .. tostring(params.seed))
+            end
+            return input.start_run(params)
         end,
         available_when = function()
             return (G.STATE == G.STATES.GAME_OVER) and not action_state.restart_run

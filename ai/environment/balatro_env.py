@@ -125,6 +125,9 @@ class BalatroEnv(gym.Env):
         
         while initial_request.get('game_state', {}).get('state') == 4:
             restart_response = {"action": 6, "params": [], "seed": self.seed}
+
+            print(f"Sending restart response: {restart_response}") 
+
             self.pipe_io.send_response(restart_response)
             initial_request = self.pipe_io.wait_for_request()
             if not initial_request:
@@ -177,6 +180,7 @@ class BalatroEnv(gym.Env):
         next_request = self.pipe_io.wait_for_request()
         if next_request:
             state_id = next_request.get('game_state', {}).get('state', 0)
+                        
             if state_id == 8:
                 import time
                 time.sleep(0.1)
@@ -189,7 +193,8 @@ class BalatroEnv(gym.Env):
         
         while next_request.get('game_state', {}).get('state') == 4:
             self.logger.info("Auto-handling START_RUN state, sending restart")
-            restart_response = {"action": 6, "params": []}
+            restart_response = {"action": 6, "params": [], "seed": self.seed}
+
             self.pipe_io.send_response(restart_response)
             next_request = self.pipe_io.wait_for_request()
             if not next_request:
@@ -209,6 +214,9 @@ class BalatroEnv(gym.Env):
         # Check for game over condition
         game_over_flag = game_state.get('game_over', 0)
         if game_over_flag == 1:
+
+            print(f"[DEBUG] Game over! Sending restart with seed={self.seed}")
+
             observation = self.state_mapper.process_game_state(self.current_state)
             reward = self.reward_calculator.calculate_reward(
                 current_state=self.current_state,
@@ -217,7 +225,8 @@ class BalatroEnv(gym.Env):
             )
             
             # Auto-send restart command to Balatro
-            restart_response = {"action": 6, "params": []}
+            restart_response = {"action": 6, "params": [], "seed": self.seed}
+            print(f"Sending restart response: {restart_response}") 
             self.pipe_io.send_response(restart_response)
             
             return observation, reward, True, False, {}

@@ -8,16 +8,24 @@ local utils = require("utils")
 --- Start the basic run
 --- Automatically starts the run in the main menu
 --- @return table Result with success status and optional error message
-function I.start_run()
+function I.start_run(params)
     local _seed = (params and params.seed) or (G.run_setup_seed and G.setup_seed) or G.forced_seed or nil
     local _challenge = G.challenge_tab or nil
     local _stake = G.forced_stake or G.PROFILES[G.SETTINGS.profile].MEMORY.stake or 1
+
+    if _seed then
+        G.forced_seed = _seed
+        G.SETTINGS.seed = _seed
+        G.run_setup_seed = _seed
+        G.setup_seed = _seed
+    end
 
     G.FUNCS.start_run(nil, {
         stake = _stake,
         seed = _seed,
         challenge = _challenge
     })
+    
     utils.log_input("start_run " .. utils.completed_success_msg)
     return { success = true }
 end
