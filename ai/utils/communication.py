@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 
 class BalatroPipeIO:
     
-    def __init__(self):
+    def __init__(self, instance_id: int = 0):
         self.logger = logging.getLogger(__name__)
         self.request_handle = None
         self.response_handle = None
@@ -16,8 +16,8 @@ class BalatroPipeIO:
             self.request_pipe = r'\\.\pipe\balatro_request'
             self.response_pipe = r'\\.\pipe\balatro_response'
         else:
-            self.request_pipe = '/tmp/balatro_request'
-            self.response_pipe = '/tmp/balatro_response'
+            self.request_pipe = f'/tmp/balatro_request_{instance_id}'
+            self.response_pipe = f'/tmp/balatro_response_{instance_id}'
 
         self.create_pipes()
         self.open_persistent_handles()

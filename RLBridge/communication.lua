@@ -11,13 +11,15 @@ local request_pipe
 local response_pipe
 
 local os_name = love.system.getOS()
+os_name = "Linux" -- For testing on non-Love2D environments, set to "Windows" or "Linux"
+local instance_id = os.getenv("BALATRO_INSTANCE_ID") or "0" -- Get instance ID from environment variable, default to "0"
 
 if os_name == "Windows" then
     request_pipe = "\\\\.\\pipe\\balatro_request"
     response_pipe = "\\\\.\\pipe\\balatro_response"
 else
-    request_pipe = "/tmp/balatro_request"
-    response_pipe = "/tmp/balatro_response"
+    request_pipe = "/tmp/balatro_request_" .. instance_id
+    response_pipe = "/tmp/balatro_response_" .. instance_id
 end
 
 local request_handle = nil
