@@ -71,7 +71,7 @@ end
 local action_registry = {
     start_run = {
         execute = function(params)
-            return input.start_run()
+            return input.start_run(params)
         end,
         available_when = function()
             return G.STATE == G.STATES.MENU and not action_state.start_run

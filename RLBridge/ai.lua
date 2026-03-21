@@ -144,7 +144,11 @@ function AI.update()
         end
         
         if action_still_valid then
-            local result = action.execute_action(pending_action.action, pending_action.params)
+            local exec_params = pending_action.params or {}
+            if pending_action.seed then
+                exec_params.seed = pending_action.seed
+            end
+            local result = action.execute_action(pending_action.action, exec_params)
             if result.success then
                 utils.log_ai("Action executed successfully: " .. pending_action.action)
                 if pending_action.action == 11 or current_state.state == G.STATES.ROUND_EVAL then

@@ -37,6 +37,8 @@ class BalatroEnv(gym.Env):
         self.prev_state = None
         self.game_over = False
         self.restart_pending = False
+        #Change this to change the seed
+        self.seed = 'JFKGEEMG'
         
         # Initialize communication and reward systems
         self.pipe_io = BalatroPipeIO()
@@ -122,7 +124,7 @@ class BalatroEnv(gym.Env):
             raise RuntimeError("Failed to receive initial request from Balatro")
         
         while initial_request.get('game_state', {}).get('state') == 4:
-            restart_response = {"action": 6, "params": []}
+            restart_response = {"action": 6, "params": [], "seed": self.seed}
             self.pipe_io.send_response(restart_response)
             initial_request = self.pipe_io.wait_for_request()
             if not initial_request:
@@ -307,13 +309,11 @@ class BalatroEnv(gym.Env):
             for action_id in available_actions:
                 if action_id in balatro_to_ai_mapping:
                     ai_index = balatro_to_ai_mapping[action_id]
+                    if global_var.isShop:
+                        if ai_index == 8 or ai_index == 9: 
+                            continue
                     action_selection_mask[ai_index] = True
-                
-                if global_var.isShop and ai_index in [8,9]:
-                    action_selection_mask[ai_index] = False
-                else:
-                    action_selection_mask[ai_index] = True
-    
+                    
         action_masks.append(action_selection_mask)
 
         # 2. Parameter Masks (Cards, Shop, Jokers)
