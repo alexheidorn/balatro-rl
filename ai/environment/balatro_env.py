@@ -126,8 +126,6 @@ class BalatroEnv(gym.Env):
         while initial_request.get('game_state', {}).get('state') == 4:
             restart_response = {"action": 6, "params": [], "seed": self.seed}
 
-            print(f"Sending restart response: {restart_response}") 
-
             self.pipe_io.send_response(restart_response)
             initial_request = self.pipe_io.wait_for_request()
             if not initial_request:
@@ -214,9 +212,6 @@ class BalatroEnv(gym.Env):
         # Check for game over condition
         game_over_flag = game_state.get('game_over', 0)
         if game_over_flag == 1:
-
-            print(f"[DEBUG] Game over! Sending restart with seed={self.seed}")
-
             observation = self.state_mapper.process_game_state(self.current_state)
             reward = self.reward_calculator.calculate_reward(
                 current_state=self.current_state,
@@ -226,7 +221,6 @@ class BalatroEnv(gym.Env):
             
             # Auto-send restart command to Balatro
             restart_response = {"action": 6, "params": [], "seed": self.seed}
-            print(f"Sending restart response: {restart_response}") 
             self.pipe_io.send_response(restart_response)
             
             return observation, reward, True, False, {}
@@ -259,11 +253,10 @@ class BalatroEnv(gym.Env):
             current_state=self.current_state,
             prev_state=self.prev_state if self.prev_state else {}
         )
-        
         done = False
             
         terminated = done
-        truncated = False  # Not using time limits for now
+        truncated = False 
         
         # Create action mask for MaskablePPO
         info = {}
@@ -304,7 +297,6 @@ class BalatroEnv(gym.Env):
         action_masks = []
         state_id = current_game_state.get('game_state', {}).get('state', 0)
     
-        # 1. Action selection mask
         action_selection_mask = [False] * self.MAX_ACTIONS
         balatro_to_ai_mapping = {
             1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 
@@ -312,25 +304,19 @@ class BalatroEnv(gym.Env):
         }
 
         if state_id == 8:
-            # Cash Out is index 10 (Action ID 11)
             action_selection_mask[10] = True
         else:
             for action_id in available_actions:
                 if action_id in balatro_to_ai_mapping:
                     ai_index = balatro_to_ai_mapping[action_id]
-                    if global_var.isShop:
-                        if ai_index == 8 or ai_index == 9: 
-                            continue
                     action_selection_mask[ai_index] = True
                     
         action_masks.append(action_selection_mask)
 
-        # 2. Parameter Masks (Cards, Shop, Jokers)
-        # We must append the EXACT number of dimensions defined in MultiDiscrete
         if state_id == 8:
             # ROUND_EVAL: Disable everything but the action itself
             for _ in range(self.MAX_CARDS):
-                action_masks.append([True, False]) # Cards: Only allow "Not Selected"
+                action_masks.append([True, False])
             action_masks.append([False] * self.MAX_SHOP_SLOTS)
             action_masks.append([False] * self.MAX_JOKER_SLOTS)
 
@@ -356,7 +342,7 @@ class BalatroEnv(gym.Env):
             action_masks.append(joker_mask)
 
             if 10 in available_actions:
-                # Check if we are in a 'transition' state
+                # Check if we are in a transition state
                 pass
             if state_id == 5:
                 if self.actions_taken and self.actions_taken[-1].get('action') == 10:

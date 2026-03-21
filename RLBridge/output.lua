@@ -146,8 +146,8 @@ end
 
 function O.get_shop_items()
     local items = {}
-    if G.shop and G.shop.jokers and G.shop.jokers.cards then
-        for i, card in ipairs(G.shop.jokers.cards) do
+    if G.shop_jokers and G.shop_jokers.cards then
+        for i, card in ipairs(G.shop_jokers.cards) do
             table.insert(items, {
                 name = card.config.center.name or "Unknown",
                 cost = card.cost or 999,

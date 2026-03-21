@@ -16,12 +16,7 @@ local rl_training_active = false
 local last_key_pressed = nil
 local cash_out_executed = false
 local retry_count = 0
-
---For Mr.Bones
-local mr_bones_cashed_out = false
-
 local state_transition_timer = 0
-local COOLDOWN_TIME = 1.5
 
 --- Initialize AI system
 --- Sets up communication and prepares the AI for operation
@@ -111,12 +106,10 @@ function AI.update()
 
         action.reset_state()
 
-        -- CRITICAL FIX: If we auto-skip, do NOT request an action from the AI
         if AI.should_auto_skip(current_state, available_actions) then
             AI.execute_auto_skip_action(current_state, available_actions)
-            -- Update the hash so we don't trigger again until the NEXT change
             last_combined_hash = AI.hash_combined_state(output.get_game_state(), action.get_available_actions())
-            return -- EXIT HERE
+            return
         end
 
         -- Add retry_count to current state
@@ -152,9 +145,9 @@ function AI.update()
             if result.success then
                 utils.log_ai("Action executed successfully: " .. pending_action.action)
                 if pending_action.action == 11 or current_state.state == G.STATES.ROUND_EVAL then
-                    state_transition_timer = 1.5 
+                    state_transition_timer = 0.10
                 else
-                    state_transition_timer = 0.05 -- Minimal delay (just enough to prevent frame-doubling)
+                    state_transition_timer = 0.01 
                 end
                 retry_count = 0  -- Reset retry count on success
                 pending_action = nil
@@ -164,8 +157,6 @@ function AI.update()
                 utils.log_ai("Action failed: " .. (result.error or "Unknown error"))
                 retry_count = retry_count + 1
                 utils.log_ai("Retry count: " .. retry_count)
-                -- Keep pending_action to retry on next frame
-                -- Force state recheck to send updated state with retry_count
                 last_combined_hash = nil
             end
         else
@@ -254,10 +245,6 @@ function AI.should_auto_skip(current_state, available_actions)
         end
     end
 
-    if AI.is_mr_bones_screen() then
-        return true
-    end
-
     return false
 end
 
@@ -265,28 +252,13 @@ end
 --- @param current_state table Current game state
 --- @param available_actions table Available actions list  
 function AI.execute_auto_skip_action(current_state, available_actions)
-    if AI.is_mr_bones_screen() then
-        if not mr_bones_cashed_out then
-            local ok, err = pcall(function() G.FUNCS.cash_out({ config = {} }) end)
-            if ok then
-                utils.log_ai("Auto cash_out (Mr. Bones): success")
-                mr_bones_cashed_out = true
-                cash_out_executed = false
-            else
-                utils.log_ai("Auto cash_out (Mr. Bones) ERROR: " .. tostring(err))
-            end
-            last_combined_hash = nil
-        end
-        return
-    end
-
     if current_state.state == G.STATES.ROUND_EVAL then
         local input = require("input")
         local result = input.cash_out()
         utils.log_ai("Auto cash_out: " .. (result.success and "success" or result.error))
         if result.success then
             cash_out_executed = true
-            state_transition_timer = COOLDOWN_TIME
+            state_transition_timer = 0.10
         end
         return
     end
@@ -308,20 +280,6 @@ function AI.execute_auto_skip_action(current_state, available_actions)
     
     -- Force state recheck after auto-execution
     last_combined_hash = nil
-end
-
-function AI.is_mr_bones_screen()
-    -- Mr. Bones triggers ROUND_EVAL with $0 payout and is present in jokers
-    if G.STATE ~= G.STATES.ROUND_EVAL then return false end
-    if not (G.GAME and G.GAME.blind and G.GAME.blind.dollars == 0) then return false end
-    if not (G.jokers and G.jokers.cards) then return false end
-    for _, card in ipairs(G.jokers.cards) do
-        if card.config and card.config.center and
-           card.config.center.key == "j_mr_bones" then
-            return true
-        end
-    end
-    return false
 end
 
 return AI

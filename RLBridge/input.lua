@@ -111,15 +111,15 @@ function I.buy_card(slot)
         return { success = false, error = "Invalid slot parameter" }
     end
 
-    if not G.shop or not G.shop.jokers or not G.shop.jokers.cards then
-        return { success = false, error = "Shop not avaliable" }
+    if not G.shop_jokers or not G.shop_jokers.cards then
+        return { success = false, error = "Shop not available" }
     end
 
-    if slot < 1 or slot > #G.shop.jokers.cards then
-        return { sucsess = false, error = "Slot index out of bounds: " .. tostring(slot) }
+    if slot < 1 or slot > #G.shop_jokers.cards then
+        return { success = false, error = "Slot index out of bounds: " .. tostring(slot) }
     end
 
-    local card = G.shop.jokers.cards[slot]
+    local card = G.shop_jokers.cards[slot]
     if not card then
         return { success = false, error = "No card in slot: " .. tostring(slot) }
     end
@@ -127,7 +127,7 @@ function I.buy_card(slot)
     if G.GAME.dollars < card.cost then
         return { success = false, error = "Cannot afford card, cost: " .. tostring(card.cost) }
     end
-
+    
     G.FUNCS.buy_from_shop({ config = {ref_table = card } })
     utils.log_input("buy_card slot " .. tostring(slot) .. " " .. utils.completed_success_msg)
     return { success = true }

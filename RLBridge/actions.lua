@@ -7,11 +7,11 @@ local utils = require("utils")
 local ACTIONS = {}
 
 -- Action constants (like G.STATES pattern)
--- Core gameplay actions are 1,2,3 for clean AI mapping
+-- Core gameplay actions
 ACTIONS.SELECT_HAND = 1
 ACTIONS.PLAY_HAND = 2
 ACTIONS.DISCARD_HAND = 3
--- Auto-executed actions (not exposed to AI)
+
 ACTIONS.START_RUN = 4
 ACTIONS.SELECT_BLIND = 5
 ACTIONS.RESTART_RUN = 6
@@ -138,8 +138,9 @@ local action_registry = {
         end,
         available_when = function()
             return G.STATE == G.STATES.SHOP
-                and G.SHOP and G.SHOP.jokers
-                and #G.SHOP.jokers.cards > 0
+                and G.shop_jokers
+                and G.shop_jokers.cards
+                and #G.shop_jokers.cards > 0
         end,
     },
     sell_joker = {

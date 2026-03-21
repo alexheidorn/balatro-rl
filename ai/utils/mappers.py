@@ -224,7 +224,6 @@ class BalatroStateMapper:
         max_jokers = 5
         for i in range(max_jokers):
             if i < len(jokers):
-                # At minimum, map the Joker's internal ID or a one-hot of the name
                 features.append(1.0) # Slot occupied
             else:
                 features.append(0.0) # Slot empty
