@@ -38,7 +38,7 @@ class BalatroEnv(gym.Env):
         self.game_over = False
         self.restart_pending = False
         #Change this to change the seed
-        self.seed = 'JFKGEEMG'
+        self.seed = global_var.choosen_seed
         
         # Initialize communication and reward systems
         self.pipe_io = BalatroPipeIO()

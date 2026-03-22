@@ -16,6 +16,8 @@ Requirements:
 import logging
 import time
 from pathlib import Path
+import global_var
+import re
 
 # SB3 imports
 from stable_baselines3.common.callbacks import CheckpointCallback
@@ -28,7 +30,18 @@ from sb3_contrib.common.wrappers import ActionMasker
 # Our custom environment
 from .environment.balatro_env import BalatroEnv
 
-
+def update_seed_in_lua(filepath, new_seed):
+    with open(filepath, "r") as f:
+        content = f.read()
+    
+    updated = re.sub(
+        r'(exec_params\.seed\s*=\s*")[^"]*(")',
+        rf'\g<1>{new_seed}\g<2>',
+        content
+    )
+    
+    with open(filepath, "w") as f:
+        f.write(updated)
 def setup_logging():
     """Setup logging for training"""
     env_logger = logging.getLogger('ai.environment.balatro_env')
@@ -56,7 +69,7 @@ def create_environment():
     
     # Use ActionMasker wrapper
     env = ActionMasker(env, mask_fn)
-    
+
     # Wrap with Monitor for logging episode stats
     env = Monitor(env, filename="training_monitor.csv")
     
@@ -89,7 +102,7 @@ def create_model(env, model_path=None):
     
     # Load existing model if path provided
     if model_path and Path(model_path).exists():
-        model.load(model_path)
+        model = MaskablePPO.load(model_path, env=env, tensorboard_log="./tensorboard_logs/")
         print(f"Loaded existing model from {model_path}")
     
     return model
@@ -144,7 +157,9 @@ def train_agent(total_timesteps=100000, save_path="./models/balatro_final", resu
         model.learn(
             total_timesteps=total_timesteps,
             callback=callbacks,
-            progress_bar=True
+            progress_bar=True,
+            tb_log_name="balatro_run",   
+            reset_num_timesteps=(resume_from is None)
         )
         
         training_time = time.time() - start_time
@@ -226,6 +241,11 @@ if __name__ == "__main__":
     # Create necessary directories
     Path("./models").mkdir(exist_ok=True)
     Path("./tensorboard_logs").mkdir(exist_ok=True)
+
+    #Getting the seed to be used
+    user_seed = input("Enter seed(Default Train-JFKGEEMG): ")
+    global_var.choosen_seed = user_seed
+    update_seed_in_lua("ai.lua", user_seed)
     
     # Train the agent
     print("\n🎮 Starting Balatro RL Training!")

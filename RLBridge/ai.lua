@@ -145,7 +145,7 @@ function AI.update()
             if result.success then
                 utils.log_ai("Action executed successfully: " .. pending_action.action)
                 if pending_action.action == 11 or current_state.state == G.STATES.ROUND_EVAL then
-                    state_transition_timer = 0.10
+                    state_transition_timer = 0.25
                 else
                     state_transition_timer = 0.01 
                 end
@@ -258,7 +258,7 @@ function AI.execute_auto_skip_action(current_state, available_actions)
         utils.log_ai("Auto cash_out: " .. (result.success and "success" or result.error))
         if result.success then
             cash_out_executed = true
-            state_transition_timer = 0.10
+            state_transition_timer = 0.25
         end
         return
     end
