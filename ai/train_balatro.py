@@ -16,7 +16,7 @@ Requirements:
 import logging
 import time
 from pathlib import Path
-import global_var
+from ai import global_var
 import re
 
 # SB3 imports
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     #Getting the seed to be used
     user_seed = input("Enter seed(Default Train-JFKGEEMG): ")
     global_var.choosen_seed = user_seed
-    update_seed_in_lua("ai.lua", user_seed)
+    update_seed_in_lua(r"C:\Users\thnlu\AppData\Roaming\Balatro\Mods\RLBridge\ai.lua", user_seed)
     
     # Train the agent
     print("\n🎮 Starting Balatro RL Training!")
