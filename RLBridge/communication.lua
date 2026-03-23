@@ -11,6 +11,7 @@ local request_pipe
 local response_pipe
 
 local os_name = love.system.getOS()
+os_name = "Linux"
 
 if os_name == "Windows" then
     request_pipe = "\\\\.\\pipe\\balatro_request"
@@ -23,12 +24,42 @@ end
 local request_handle = nil
 local response_handle = nil
 
+-- Communication mode: "pipe" (default) or "socket" (viewer instance)
+local comm_mode = os.getenv("BALATRO_COMM_MODE") or "pipe"
+local socket_host = os.getenv("BALATRO_SOCKET_HOST") or "127.0.0.1"
+local socket_port = tonumber(os.getenv("BALATRO_SOCKET_PORT")) or 9000
+
+local socket_conn = nil  -- LuaSocket connection handle
+
 --- Initialize dual pipe communication with persistent handles
 --- Sets up persistent pipe handles with external AI system
 --- @return nil
 function COMM.init()
     utils.log_comm("Initializing dual pipe communication...")
     comm_enabled = true -- Enable communication, pipes will open on first use
+end
+
+function COMM.ensure_connection_open()
+    if comm_mode == "socket" then
+        return COMM.ensure_socket_open()
+    else
+        return COMM.ensure_pipes_open()
+    end
+end
+
+function COMM.ensure_socket_open()
+    if socket_conn then return true end
+
+    local sock = require("socket")
+    local conn, err = sock.connect(socket_host, socket_port)
+    if not conn then
+        utils.log_comm("ERROR: Cannot connect to socket: " .. tostring(err))
+        return false
+    end
+    conn:setoption("tcp-nodelay", true)
+    socket_conn = conn
+    utils.log_comm("Connected to viewer socket at " .. socket_host .. ":" .. socket_port)
+    return true
 end
 
 --- Lazy initialization of pipe handles when first needed
