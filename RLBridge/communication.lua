@@ -121,12 +121,25 @@ function COMM.request_action(game_state, available_actions)
         return nil
     end
 
-    -- Write request to persistent handle
-    request_handle:write(json_data .. "\n")
-    request_handle:flush() -- Ensure data is sent immediately
+    if comm_mode == "socket" then
+        socket_conn:send(json_data .. "\n")
+        local response_json, err = socket_conn:receive("*l")
+        if not response_json then
+            utils.log_comm("ERROR: Socket receive failed: " .. tostring(err))
+            return nil
+        end
+    else
+        -- Write request to persistent handle
+        request_handle:write(json_data .. "\n")
+        request_handle:flush() -- Ensure data is sent immediately
 
-    -- Read response from persistent handle
-    local response_json = response_handle:read("*line")
+        -- Read response from persistent handle
+        local response_json = response_handle:read("*line")
+        if not response_json then
+            utils.log_comm("ERROR: Failed to read response from pipe")
+            return nil
+        end
+    end
 
     if not response_json or response_json == "" then
         utils.log_comm("ERROR: No response received from AI")
