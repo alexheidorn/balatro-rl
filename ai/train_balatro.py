@@ -12,12 +12,13 @@ Requirements:
     - Balatro game running with RLBridge mod
     - file_watcher.py should NOT be running (this replaces it)
 """
-
 import logging
+import os
 import time
 from pathlib import Path
 from ai import global_var
 import re
+from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 
 # SB3 imports
 from stable_baselines3.common.callbacks import CheckpointCallback
@@ -30,6 +31,50 @@ from sb3_contrib.common.wrappers import ActionMasker
 # Our custom environment
 from .environment.balatro_env import BalatroEnv
 
+class WinTracker(BaseCallback):
+    def __init__(self, log_freq=10, verbose=1):
+        super().__init__(verbose)
+        self.log_freq = log_freq
+
+        self.total_episodes = 0
+        self.total_wins = 0
+        self.best_ante = 0
+        self.best_round = 0
+
+    def _win_pct(self):
+        if self.total_episodes == 0:
+            return 0.0
+        return round(100.0 * self.total_wins / self.total_episodes, 2)
+    
+    def _on_step(self) -> bool:
+        dones = self.locals.get("dones", [])
+        infos = self.locals.get("infos", [])
+
+        for done, info in zip(dones, infos):
+            if not done:
+                continue
+
+            self.total_episodes += 1
+
+            won = bool(info.get("won", False))
+            if won:
+                self.total_wins += 1
+            
+            ante = info.get("ante", 0)
+            round_ = info.get("round", 0)
+
+            if ante > self.best_ante or (ante == self.best_ante and round_ > self.best_round):
+                self.best_ante = ante
+                self.best_round = round_
+            
+        #For Tensor
+        if self.n_calls % 1000 == 0:
+            self.logger.record("custom/win_pct",    self._win_pct())
+            self.logger.record("custom/best_ante",  self.best_ante)
+            self.logger.record("custom/best_round", self.best_round)
+            self.logger.record("custom/total_wins", self.total_wins)
+
+        return True
 def update_seed_in_lua(filepath, new_seed):
     with open(filepath, "r") as f:
         content = f.read()
@@ -119,6 +164,7 @@ def create_callbacks(save_freq=1000):
         name_prefix="balatro_model"
     )
     callbacks.append(checkpoint_callback)
+    callbacks.append(WinTracker(log_freq =10,verbose=1))
     
     return callbacks
 
@@ -245,7 +291,17 @@ if __name__ == "__main__":
     #Getting the seed to be used
     user_seed = input("Enter seed(Default Train-JFKGEEMG): ")
     global_var.choosen_seed = user_seed
-    update_seed_in_lua(r"C:\Users\thnlu\AppData\Roaming\Balatro\Mods\RLBridge\ai.lua", user_seed)
+    if os.name == 'nt':
+        appdata_path = os.getenv('APPDATA')
+
+        balatro_mod_path = Path(appdata_path) / "Balatro" / "Mods" / "RLBridge" / "ai.lua"
+
+        update_seed_in_lua(balatro_mod_path, user_seed)
+    else:
+        home = Path.home()
+        balatro_mod_path = home / ".local" / "share" / "Balatro" / "Mods" / "RLBridge" / "ai.lua"
+
+        update_seed_in_lua(balatro_mod_path, user_seed)
     
     # Train the agent
     print("\n🎮 Starting Balatro RL Training!")
