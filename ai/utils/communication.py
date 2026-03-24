@@ -24,6 +24,8 @@ class BalatroPipeIO:
 
     def create_pipes(self) -> None:
         if platform.system() == "Windows":
+            # On Windows, named pipes are created via Win32 API
+            # We do this in open_persistent_handles using pywin32
             self.logger.info("Windows: pipes will be created as named pipe server")
             return
         
@@ -35,6 +37,7 @@ class BalatroPipeIO:
                     self.logger.info(f"Created pipe: {pipe_path}")
                 else:
                     self.logger.info(f"Pipe already exists: {pipe_path}")
+                    self.logger.debug(f"Using existing pipe: {pipe_path}")
             except Exception as e:
                 self.logger.error(f"Failed to create pipe {pipe_path}: {e}")
                 raise RuntimeError(f"Could not create pipe: {pipe_path}")
@@ -78,6 +81,7 @@ class BalatroPipeIO:
         win32pipe.ConnectNamedPipe(self._res_pipe_handle, None)
         self.logger.info("Balatro connected!")
 
+        # Use msvcrt.open_osfhandle instead of the broken GetOSHandle approach
         req_fd = msvcrt.open_osfhandle(int(self._req_pipe_handle), os.O_RDONLY)
         res_fd = msvcrt.open_osfhandle(int(self._res_pipe_handle), os.O_WRONLY)
         self.request_handle = os.fdopen(req_fd, 'r', encoding='utf-8')
@@ -86,7 +90,7 @@ class BalatroPipeIO:
     def _open_unix_pipes(self):
         import threading
 
-        self.logger.info("Waiting for Balatro to connect...")
+        self.logger.info("Creating Unix pipes...")
         self.logger.info("Press 'R' in Balatro now to activate RL training!")
 
         req_fd = None
@@ -100,6 +104,7 @@ class BalatroPipeIO:
             nonlocal res_fd
             res_fd = os.open(self.response_pipe, os.O_WRONLY)
 
+        # Open both ends concurrently to avoid blocking
         req_thread = threading.Thread(target=open_request)
         res_thread = threading.Thread(target=open_response)
         req_thread.start()
@@ -107,19 +112,19 @@ class BalatroPipeIO:
         req_thread.join()
         res_thread.join()
 
+        self.logger.info("Waiting for Balatro to connect to pipes...")
         self.request_handle = os.fdopen(req_fd, 'r', encoding='utf-8')
         self.response_handle = os.fdopen(res_fd, 'w', encoding='utf-8')
+        self.logger.info("Balatro connected!")
 
     def wait_for_request(self) -> Optional[Dict[str, Any]]:
         if not self.request_handle:
             self.logger.error("Request handle not open")
             return None
         try:
-            while True:
-                request_line = self.request_handle.readline().strip()
-                if request_line:
-                    break
-            
+            request_line = self.request_handle.readline().strip()
+            if not request_line:
+                return None
             request_data = json.loads(request_line)
             self.logger.debug(f"📥 RECEIVED: {request_line}")
             return request_data
@@ -150,10 +155,12 @@ class BalatroPipeIO:
             if h:
                 try:
                     h.close()
+                    self.logger.debug(f"Closed {handle_name}")
                 except Exception:
                     pass
                 setattr(self, handle_name, None)
 
+        # Also close Windows PyHANDLE objects if they exist
         if platform.system() == "Windows":
             for handle_name in ['_req_pipe_handle', '_res_pipe_handle']:
                 h = getattr(self, handle_name, None)
@@ -172,5 +179,9 @@ class BalatroPipeIO:
                 try:
                     if os.path.exists(pipe_path):
                         os.unlink(pipe_path)
-                except Exception:
-                    pass
+                        self.logger.debug(f"Removed pipe: {pipe_path}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to remove pipe {pipe_path}: {e}")
+        
+
+            self.logger.debug("Dual pipe communication cleanup complete")

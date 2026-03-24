@@ -34,18 +34,41 @@ end
 --- Automatically selects the next available blind in the blind selection screen
 --- @return table Result with success status and optional error message
 function I.select_blind()
-    -- Get the blind that's on deck and just select it
     local blind_on_deck = G.GAME.blind_on_deck
+    local blind_key = G.GAME.round_resets.blind_choices[blind_on_deck]
 
-    -- Create the button structure that select_blind expects
-    local fake_button = {
-        config = {
-            ref_table = G.P_BLINDS[G.GAME.round_resets.blind_choices[blind_on_deck]],
-            id = blind_on_deck
-        }
-    }
+    -- Replicate select_blind internals without UIBox traversal
+    stop_use()
+    G.GAME.facing_blind = true
 
-    G.FUNCS.select_blind(fake_button)
+    G.E_MANAGER:add_event(Event({
+        trigger = 'immediate',
+        func = function()
+            ease_round(1)
+            inc_career_stat('c_rounds', 1)
+            G.GAME.round_resets.blind = G.P_BLINDS[blind_key]
+            G.GAME.round_resets.blind_states[blind_on_deck] = 'Current'
+            if G.blind_select then
+                G.blind_select:remove()
+                G.blind_select = nil
+            end
+            if G.blind_prompt_box then
+                G.blind_prompt_box:remove()
+                G.blind_prompt_box = nil
+            end
+            delay(0.2)
+            return true
+        end
+    }))
+
+    G.E_MANAGER:add_event(Event({
+        trigger = 'immediate',
+        func = function()
+            new_round()
+            return true
+        end
+    }))
+
     utils.log_input("select_blind " .. utils.completed_success_msg)
     return { success = true }
 end

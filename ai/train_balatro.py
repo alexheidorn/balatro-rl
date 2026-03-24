@@ -30,6 +30,8 @@ from sb3_contrib.common.wrappers import ActionMasker
 # Our custom environment
 from .environment.balatro_env import BalatroEnv
 
+TRAINING_STEPS = 1024  # Total training steps
+
 def update_seed_in_lua(filepath, new_seed):
     with open(filepath, "r") as f:
         content = f.read()
@@ -42,6 +44,7 @@ def update_seed_in_lua(filepath, new_seed):
     
     with open(filepath, "w") as f:
         f.write(updated)
+
 def setup_logging():
     """Setup logging for training"""
     env_logger = logging.getLogger('ai.environment.balatro_env')
@@ -267,7 +270,7 @@ if __name__ == "__main__":
                 print(f"📂 Found checkpoint: {latest_checkpoint}")
         
         model = train_agent(
-            total_timesteps=250000,
+            total_timesteps=TRAINING_STEPS,
             save_path="./models/balatro_trained",
             resume_from=str(latest_checkpoint) if latest_checkpoint else None
         )
