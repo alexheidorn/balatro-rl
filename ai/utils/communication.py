@@ -4,6 +4,110 @@ import os
 import platform
 from typing import Dict, Any, Optional
 
+import socket
+import threading
+from typing import Dict, Any, Optional
+
+
+class BalatroSocketIO:
+    """
+    TCP socket transport for Balatro communication.
+    Drop-in replacement for BalatroPipeIO — identical interface.
+    
+    Used for the viewer instance where Balatro runs on a different
+    machine (your PC) and connects to the training server over TCP.
+    
+    Python acts as the SERVER, Balatro (Lua) connects as the CLIENT.
+    """
+
+    def __init__(self, host: str = '0.0.0.0', port: int = 9000):
+        self.logger = logging.getLogger(__name__)
+        self.host = host
+        self.port = port
+
+        self.request_handle = None  # socket file object for reading
+        self.response_handle = None  # socket file object for writing
+        self._conn = None
+        self._server_sock = None
+
+        self._wait_for_connection()
+
+    def _wait_for_connection(self):
+        self.logger.info(f"Viewer socket listening on {self.host}:{self.port}")
+        self.logger.info("Start Balatro on your PC and press 'R' to connect...")
+
+        self._server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._server_sock.bind((self.host, self.port))
+        self._server_sock.listen(1)
+
+        self._conn, addr = self._server_sock.accept()
+        self._conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        self.logger.info(f"Balatro connected from {addr}")
+
+        # Wrap socket in file objects — same readline()/write() interface as pipes
+        self.request_handle = self._conn.makefile('r', encoding='utf-8')
+        self.response_handle = self._conn.makefile('w', encoding='utf-8')
+
+    # --- Identical interface to BalatroPipeIO below ---
+
+    def wait_for_request(self) -> Optional[Dict[str, Any]]:
+        if not self.request_handle:
+            self.logger.error("Request handle not open")
+            return None
+        try:
+            request_line = self.request_handle.readline().strip()
+            if not request_line:
+                return None
+            request_data = json.loads(request_line)
+            self.logger.debug(f"📥 RECEIVED: {request_line}")
+            return request_data
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Invalid JSON in request: {e}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error reading from socket: {e}")
+            return None
+
+    def send_response(self, response_data: Dict[str, Any]) -> bool:
+        if not self.response_handle:
+            self.logger.error("Response handle not open")
+            return False
+        try:
+            json.dump(response_data, self.response_handle)
+            self.response_handle.write('\n')
+            self.response_handle.flush()
+            self.logger.debug(f"📤 SENT: {json.dumps(response_data)}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error sending response: {e}")
+            return False
+
+    def cleanup_handles(self):
+        for handle in [self.request_handle, self.response_handle]:
+            if handle:
+                try:
+                    handle.close()
+                except Exception:
+                    pass
+        self.request_handle = None
+        self.response_handle = None
+        if self._conn:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
+
+    def cleanup(self):
+        self.cleanup_handles()
+        if self._server_sock:
+            try:
+                self._server_sock.close()
+            except Exception:
+                pass
+            self._server_sock = None
+        self.logger.info("Socket communication closed")
 
 class BalatroPipeIO:
     

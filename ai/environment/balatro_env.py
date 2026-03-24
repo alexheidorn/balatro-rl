@@ -8,11 +8,11 @@ RL libraries that expect gym-style step()/reset() methods.
 import numpy as np
 from typing import Dict, Any, Tuple, List, Optional
 import logging
+import os
 import gymnasium as gym
 from .. import global_var
 from gymnasium import spaces
-
-from ..utils.communication import BalatroPipeIO
+from ..utils.communication import BalatroPipeIO, BalatroSocketIO
 from .reward import BalatroRewardCalculator
 from ..utils.mappers import BalatroStateMapper, BalatroActionMapper
 from ..utils.replay import ReplaySystem
@@ -39,9 +39,16 @@ class BalatroEnv(gym.Env):
         self.restart_pending = False
         #Change this to change the seed
         self.seed = global_var.choosen_seed
+
+        # Initialize communication system — swap transport based on env var
+        if os.getenv("BALATRO_COMM_MODE") == "socket":
+            self.logger.info("Using socket communication")
+            self.pipe_io = BalatroSocketIO(port=int(os.getenv("BALATRO_SOCKET_PORT", 9000)))
+        else:
+            self.logger.info("Using pipe communication")
+            self.pipe_io = BalatroPipeIO()
         
-        # Initialize communication and reward systems
-        self.pipe_io = BalatroPipeIO()
+        # Initialize reward systems
         self.reward_calculator = BalatroRewardCalculator()
 
         # Replay System
