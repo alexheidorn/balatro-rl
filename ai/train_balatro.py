@@ -302,7 +302,7 @@ if __name__ == "__main__":
         update_seed_in_lua(balatro_mod_path, user_seed)
     else:
         home = Path.home()
-        balatro_mod_path = home / ".local" / "share" / "Balatro" / "Mods" / "RLBridge" / "ai.lua"
+        balatro_mod_path = home / ".local" / "share" / "love" / "Mods" / "RLBridge" / "ai.lua"
 
         update_seed_in_lua(balatro_mod_path, user_seed)
     
