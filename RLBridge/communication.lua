@@ -59,6 +59,7 @@ function COMM.ensure_socket_open()
         return false
     end
     conn:setoption("tcp-nodelay", true)
+    conn:settimeout(30) -- Set a timeout for socket operations
     socket_conn = conn
     utils.log_comm("Connected to viewer socket at " .. socket_host .. ":" .. socket_port)
     return true
@@ -122,21 +123,23 @@ function COMM.request_action(game_state, available_actions)
         utils.log_comm("ERROR: Failed to encode request JSON")
         return nil
     end
-
+    
+    local response_json = nil
     if comm_mode == "socket" then
         socket_conn:send(json_data .. "\n")
-        local response_json, err = socket_conn:receive("*l")
-        if not response_json then
+        local line, err = socket_conn:receive("*l")
+        if not line then
             utils.log_comm("ERROR: Socket receive failed: " .. tostring(err))
             return nil
         end
+        response_json = line
     else
         -- Write request to persistent handle
         request_handle:write(json_data .. "\n")
         request_handle:flush() -- Ensure data is sent immediately
 
         -- Read response from persistent handle
-        local response_json = response_handle:read("*line")
+        response_json = response_handle:read("*line")
         if not response_json then
             utils.log_comm("ERROR: Failed to read response from pipe")
             return nil
