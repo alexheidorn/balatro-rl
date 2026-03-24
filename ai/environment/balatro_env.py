@@ -39,8 +39,10 @@ class BalatroEnv(gym.Env):
 
         # Initialize communication system — swap transport based on env var
         if os.getenv("BALATRO_COMM_MODE") == "socket":
+            self.logger.info("Using socket communication")
             self.pipe_io = BalatroSocketIO(port=int(os.getenv("BALATRO_SOCKET_PORT", 9000)))
         else:
+            self.logger.info("Using pipe communication")
             self.pipe_io = BalatroPipeIO()
         
         # Initialize reward systems

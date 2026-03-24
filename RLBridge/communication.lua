@@ -35,14 +35,16 @@ local socket_conn = nil  -- LuaSocket connection handle
 --- Sets up persistent pipe handles with external AI system
 --- @return nil
 function COMM.init()
-    utils.log_comm("Initializing dual pipe communication...")
+    utils.log_comm("Initializing communication channel. Mode: " .. comm_mode .. "on " .. socket_host .. ":" .. socket_port .. ", OS: " .. os_name)
     comm_enabled = true -- Enable communication, pipes will open on first use
 end
 
 function COMM.ensure_connection_open()
     if comm_mode == "socket" then
+        utils.log_comm("Initializing socket communication on " .. socket_host .. ":" .. socket_port)
         return COMM.ensure_socket_open()
     else
+        utils.log_comm("Initializing dual pipe communication...")
         return COMM.ensure_pipes_open()
     end
 end
@@ -101,8 +103,8 @@ function COMM.request_action(game_state, available_actions)
     end
 
     -- Lazy initialization - open pipes when first needed
-    if not COMM.ensure_pipes_open() then
-        utils.log_comm("ERROR: Failed to open pipe handles")
+    if not COMM.ensure_connection_open() then
+        utils.log_comm("ERROR: Failed to open communication handles")
         return nil
     end
 
