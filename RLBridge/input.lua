@@ -29,6 +29,14 @@ function I.start_run(params)
     utils.log_input("start_run " .. utils.completed_success_msg)
     return { success = true }
 end
+---Comment Out when not debugging
+function I.force_beat_blind()
+    if G.GAME and G.GAME.chips ~= nil then
+        G.GAME.chips = 999999999
+    end
+    utils.log_input("force_beat_blind: set chips to 999999999")
+    return { success = true }
+end
 
 --- Select the current blind on deck
 --- Automatically selects the next available blind in the blind selection screen

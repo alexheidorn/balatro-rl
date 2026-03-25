@@ -18,6 +18,9 @@ local cash_out_executed = false
 local retry_count = 0
 local state_transition_timer = 0
 
+local blind_forced = false
+local blind_force_timer = 0
+
 --- Initialize AI system
 --- Sets up communication and prepares the AI for operation
 --- @return nil
@@ -71,6 +74,17 @@ function AI.update()
     -- Get current game state
     local current_state = output.get_game_state()
     local available_actions = action.get_available_actions()
+    
+    ---Comment out when not debugging
+    if current_state.state == G.STATES.MENU or current_state.state == G.STATES.BLIND_SELECT then
+        blind_forced = false
+        blind_force_timer = 0
+    end
+    if not blind_forced and G.STATE == G.STATES.SELECTING_HAND then
+        local input = require("input")
+        input.force_beat_blind()
+        blind_forced = true
+    end
 
     if current_state.state ~= G.STATES.ROUND_EVAL then
         cash_out_executed = false
