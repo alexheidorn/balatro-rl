@@ -7,8 +7,22 @@ local utils = require("utils")
 
 --- Start the basic run
 --- Automatically starts the run in the main menu
+--- @param seed_choice optional override seed value (string or number)
 --- @return table Result with success status and optional error message
-function I.start_run()
+function I.start_run(seed_choice)
+    -- If caller provides a seed, set game seed flags accordingly
+    if seed_choice then
+        G.setup_seed = seed_choice
+        G.run_setup_seed = true
+    end
+
+    -- Otherwise, check environment variable from the external runner
+    local env_seed = os.getenv("BALATRO_SEED_VALUE")
+    if not G.run_setup_seed and env_seed then
+        G.setup_seed = env_seed
+        G.run_setup_seed = true
+    end
+
     local _seed = G.run_setup_seed and G.setup_seed or G.forced_seed or nil
     local _challenge = G.challenge_tab or nil
     local _stake = G.forced_stake or G.PROFILES[G.SETTINGS.profile].MEMORY.stake or 1

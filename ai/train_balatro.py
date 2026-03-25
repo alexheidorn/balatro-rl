@@ -14,6 +14,8 @@ Requirements:
 """
 
 import logging
+import os
+import random
 import time
 from pathlib import Path
 
@@ -222,7 +224,21 @@ if __name__ == "__main__":
     # Create necessary directories
     Path("./models").mkdir(exist_ok=True)
     Path("./tensorboard_logs").mkdir(exist_ok=True)
-    
+
+    # Query user for seed to use
+    seed_choice_option = input("Input 0 to use the training seed, 1 for the testing seed, or 2 for a random seed: ")
+
+    # Determine actual seed string and export to environment for the game mod
+    if seed_choice_option == "0":
+        seed_choice = "111111"  # training seed (example)
+    elif seed_choice_option == "1":
+        seed_choice = "222222"  # testing seed (example)
+    else:
+        seed_choice = str(random.randint(1, 999999999))
+
+    os.environ["BALATRO_SEED_VALUE"] = seed_choice
+    print(f"Using seed: {seed_choice} (option {seed_choice_option})")
+
     # Train the agent
     print("\n🎮 Starting Balatro RL Training!")
     print("Setup steps:")
