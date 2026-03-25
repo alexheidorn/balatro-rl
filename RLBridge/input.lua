@@ -42,7 +42,7 @@ function I.select_blind()
     G.GAME.facing_blind = true
 
     G.E_MANAGER:add_event(Event({
-        trigger = 'immediate',
+        trigger = 'after',
         func = function()
             ease_round(1)
             inc_career_stat('c_rounds', 1)
@@ -62,7 +62,7 @@ function I.select_blind()
     }))
 
     G.E_MANAGER:add_event(Event({
-        trigger = 'immediate',
+        trigger = 'after',
         func = function()
             new_round()
             return true
