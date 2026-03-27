@@ -10,8 +10,7 @@ local comm_enabled = false
 local request_pipe
 local response_pipe
 
-local os_name = love.system.getOS()
-os_name = "Linux"
+local os_name = os.getenv("OS") or love.system.getOS()
 
 if os_name == "Windows" then
     request_pipe = "\\\\.\\pipe\\balatro_request"
