@@ -134,7 +134,14 @@ local action_registry = {
     buy_joker = {
         execute = function(params)
             local slot = params and params[1] or 1
-            return input.buy_card(slot)
+            if G.shop_jokers and G.shop_jokers.cards then
+                local card = G.shop_jokers.cards[slot]
+                if card and card.config and card.config.center
+                    and card.config.center.set == "Joker" then
+                        return input.buy_card(slot)
+                end
+            end
+            return { success = false, error = "No joker in that slot" }
         end,
         available_when = function()
             return G.STATE == G.STATES.SHOP
@@ -149,7 +156,7 @@ local action_registry = {
             return input.sell_joker(slot)
         end,
         available_when = function()
-            return G.STATE == G.STATES.SHOP
+            return G.STATE == G.STATES.SHOP 
                 and G.jokers and #G.jokers.cards > 0
         end,
     },

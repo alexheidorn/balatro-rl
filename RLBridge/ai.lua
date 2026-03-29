@@ -158,8 +158,14 @@ function AI.update()
             local result = action.execute_action(pending_action.action, exec_params)
             if result.success then
                 utils.log_ai("Action executed successfully: " .. pending_action.action)
-                if pending_action.action == 11 or current_state.state == G.STATES.ROUND_EVAL or current_state.state == G.STATES.BLIND_SELECT then
+                if pending_action.action == 11 or current_state.state == G.STATES.ROUND_EVAL then
                     state_transition_timer = 0.25
+                elseif pending_action.action == 5 then
+                    state_transition_timer = 0.5
+                elseif current_state.state == G.STATES.BLIND_SELECT then
+                    state_transition_timer = 0.5
+                elseif current_state.state == G.STATES.SHOP then
+                    state_transition_timer = 0.1
                 else
                     state_transition_timer = 0.01 
                 end

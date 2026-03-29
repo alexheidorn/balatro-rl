@@ -12,7 +12,7 @@ local response_pipe
 
 local os_name = os.getenv("OS") or love.system.getOS()
 
-if os_name == "Windows" then
+if os_name == "Windows_NT" then
     request_pipe = "\\\\.\\pipe\\balatro_request"
     response_pipe = "\\\\.\\pipe\\balatro_response"
 else
