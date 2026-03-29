@@ -22,6 +22,7 @@ function O.get_game_state()
     return {
         -- Basic state info
         state = G.STATE,
+        blind_name = G.GAME and G.GAME.blind and G.GAME.blind.name or "None",
         game_over = game_over,
         game_win = game_win,
 
@@ -55,9 +56,12 @@ end
 --- @return number Chips needed to beat current blind
 function O.get_blind_chips()
     if not G.GAME or not G.GAME.blind then
-        return 300  -- TODO probably fix this if we are doing more than one blind Default ante 1 small blind requirement
+        return 300-- TODO probably fix this if we are doing more than one blind Default ante 1 small blind requirement
     end
-    return G.GAME.blind.chips or 300
+    local ok, chips = pcall(function()
+        return G.GAME.blind.chips
+    end)
+    return (ok and chips) or 300
 end
 
 --- Get hand information

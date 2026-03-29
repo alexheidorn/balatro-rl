@@ -85,7 +85,7 @@ end
 --- Selects the cards based on a table of indexes
 --- @param card_indices table Array of card indices to select
 --- @return table Result with success status and optional error message
-function I.select_hand(card_indices)
+function I.select_hand(card_indices, boss_name)
     if not card_indices or type(card_indices) ~= "table" then
         return { success = false, error = "Invalid card indices parameter" }
     end
@@ -102,10 +102,16 @@ function I.select_hand(card_indices)
         return { success = false, error = "No hand or cards available" }
     end
 
+    local handsize = #G.hand.cards;
+    --Boss Check for The Manacle
+    if boss_name == "The Manacle" then
+        handsize = 7
+    end
+
     -- Validate all card indices are within bounds
     for i = 1, #card_indices do
         local card_index = card_indices[i]
-        if not card_index or card_index < 1 or card_index > #G.hand.cards then
+        if not card_index or card_index < 1 or card_index > handsize then
             return { success = false, error = "Card index out of bounds: " .. tostring(card_index) }
         end
         if not G.hand.cards[card_index] then

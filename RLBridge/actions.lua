@@ -87,7 +87,9 @@ local action_registry = {
     },
     select_hand = {
         execute = function(params)
-            return input.select_hand(params)
+            local boss_name = G.GAME and G.GAME.blind and G.GAME.blind.name or nil
+            print(boss_name)
+            return input.select_hand(params, boss_name)
         end,
         available_when = function()
             return G.STATE == G.STATES.SELECTING_HAND and G.hand and G.hand.cards and #G.hand.highlighted <= 0 and

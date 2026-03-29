@@ -243,55 +243,42 @@ class BalatroStateMapper:
         features.append(float(round.get('discards_left', 0)))
         return features
 
-
-
     def _extract_current_hand_scoring(self, current_hand: Dict[str, Any]) -> List[float]:
-        """
-        Extract current hand scoring information (chips, mult, score, hand type)
-        
-        Args:
-            current_hand: Current hand scoring data from game state
-            
-        Returns:
-            List with chips, mult, score, and one-hot encoded hand type (16 dimensions total)
-        """
         features = []
-        
-        # Raw scoring values
-        features.append(float(current_hand.get('chips', 0)))
-        features.append(float(current_hand.get('mult', 0)))  
+   
+        try:
+            features.append(float(current_hand.get('chips', 0)))
+        except (ValueError, TypeError):
+            features.append(0.0)
+   
+        try:
+            features.append(float(current_hand.get('mult', 0)))
+        except (ValueError, TypeError):
+            features.append(0.0)
+   
         features.append(float(current_hand.get('score', 0)))
-        
+   
         # Hand type one-hot encoding
         hand_types = [
-            "None",          # 0 - No hand played yet
-            "High Card",     # 1
-            "Pair",          # 2
-            "Two Pair",      # 3
-            "Three of a Kind", # 4
-            "Straight",      # 5
-            "Flush",         # 6
-            "Full House",    # 7
-            "Four of a Kind", # 8
-            "Straight Flush", # 9
-            "Five of a Kind", # 10
-            "Flush House",   # 11
-            "Flush Five"     # 12
+            "None", "High Card", "Pair", "Two Pair", "Three of a Kind",
+            "Straight", "Flush", "Full House", "Four of a Kind",
+            "Straight Flush", "Five of a Kind", "Flush House", "Flush Five"
         ]
-        
+   
         hand_name = current_hand.get('handname', 'None')
-        if not hand_name:
+        if not hand_name or '?' in hand_name:
             hand_name = "None"
-        
+   
         try:
             hand_index = hand_types.index(hand_name)
         except ValueError:
-            hand_index = 0  # Default to "None" if hand type not found
+            hand_index = 0
+
 
         features.extend(make_onehot(hand_index, len(hand_types)))
-        
+   
         return features
-    
+
 class BalatroActionMapper:
     """
     Converts RL actions to Balatro command JSON.
@@ -380,5 +367,3 @@ class BalatroActionMapper:
             return [joker_slot + 1]
         else:
             return []
-
-
