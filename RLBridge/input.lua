@@ -103,10 +103,6 @@ function I.select_hand(card_indices, boss_name)
     end
 
     local handsize = #G.hand.cards;
-    --Boss Check for The Manacle
-    if boss_name == "The Manacle" then
-        handsize = 7
-    end
 
     -- Validate all card indices are within bounds
     for i = 1, #card_indices do

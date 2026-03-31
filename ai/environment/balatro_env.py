@@ -85,7 +85,7 @@ class BalatroEnv(gym.Env):
         
         # Observation space: This should describe the type and shape of the observation
         # Constants
-        self.OBSERVATION_SIZE = 229
+        self.OBSERVATION_SIZE = 313
         self.observation_space = spaces.Box(
             low=-np.inf, # lowest bound of observation data
             high=np.inf, # highest bound of observation data
@@ -251,10 +251,8 @@ class BalatroEnv(gym.Env):
                 chips=game_state.get('chips', 0)
             )
             return observation, reward, False, False, {"win_detected": True}
-
         # Process new state for SB3
         observation = self.state_mapper.process_game_state(self.current_state)
-        
         # Calculate reward using expert reward calculator
         reward = self.reward_calculator.calculate_reward(
             current_state=self.current_state,

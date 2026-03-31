@@ -180,12 +180,16 @@ class BalatroStateMapper:
             features.extend(card_features)
         
         # Pad or truncate to fixed size 
-        max_cards = 8  # TODO this might have to be updated in future if we go bigger Standard Balatro hand size
+        max_cards = 12  # TODO this might have to be updated in future if we go bigger Standard Balatro hand size
         features_per_card = 21  # 1+5+14+1 = highlighted+suit_onehot+value_onehot+nominal
+        expected_total_size = NON_CARDS_FEATURES + (max_cards * features_per_card)
+
+        features = features[:expected_total_size]
         
         # If no cards in hand, pad with zeros
-        if len(features) == NON_CARDS_FEATURES:
-            features.extend([0.0] * (max_cards * features_per_card))
+        padding_needed = expected_total_size - len(features)
+        if padding_needed > 0:
+            features.extend([0.0] * padding_needed)
         
         return features
     
