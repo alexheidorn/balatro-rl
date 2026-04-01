@@ -23,8 +23,13 @@ function O.get_game_state()
         -- Basic state info
         state = G.STATE,
         blind_name = G.GAME and G.GAME.blind and G.GAME.blind.name or "None",
+
+        ante = G.GAME and G.GAME.round_resets and G.GAME.round_resets.ante or 1,
+
+        round_count = G.GAME and G.GAME.stats and G.GAME.stats.rounds or 0,
+        
         game_over = game_over,
-        game_win = game_win,
+        game_win = G.GAME.win or false,
 
         -- Round info (hands/discards left)
         round = O.get_round_info(),
@@ -47,6 +52,9 @@ function O.get_game_state()
         gold = O.get_gold(),
 
         jokers = O.get_jokers(),
+
+        --Should we go to endless?
+        auto_endless_config = auto_endless,
 
         shop = {items = O.get_shop_items() },
     }
