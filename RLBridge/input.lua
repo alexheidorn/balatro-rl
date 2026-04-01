@@ -8,17 +8,33 @@ local utils = require("utils")
 --- Start the basic run
 --- Automatically starts the run in the main menu
 --- @return table Result with success status and optional error message
-function I.start_run()
-    local _seed = G.run_setup_seed and G.setup_seed or G.forced_seed or nil
+function I.start_run(params)
+    local _seed = (params and params.seed) or (G.run_setup_seed and G.setup_seed) or G.forced_seed or nil
     local _challenge = G.challenge_tab or nil
     local _stake = G.forced_stake or G.PROFILES[G.SETTINGS.profile].MEMORY.stake or 1
+
+    if _seed then
+        G.forced_seed = _seed
+        G.SETTINGS.seed = _seed
+        G.run_setup_seed = _seed
+        G.setup_seed = _seed
+    end
 
     G.FUNCS.start_run(nil, {
         stake = _stake,
         seed = _seed,
         challenge = _challenge
     })
+    
     utils.log_input("start_run " .. utils.completed_success_msg)
+    return { success = true }
+end
+---Comment Out when not debugging
+function I.force_beat_blind()
+    if G.GAME and G.GAME.chips ~= nil then
+        G.GAME.chips = 999999999
+    end
+    utils.log_input("force_beat_blind: set chips to 999999999")
     return { success = true }
 end
 
@@ -34,7 +50,7 @@ function I.select_blind()
     G.GAME.facing_blind = true
 
     G.E_MANAGER:add_event(Event({
-        trigger = 'immediate',
+        trigger = 'after',
         func = function()
             ease_round(1)
             inc_career_stat('c_rounds', 1)
@@ -54,7 +70,7 @@ function I.select_blind()
     }))
 
     G.E_MANAGER:add_event(Event({
-        trigger = 'immediate',
+        trigger = 'after',
         func = function()
             new_round()
             return true
@@ -69,7 +85,7 @@ end
 --- Selects the cards based on a table of indexes
 --- @param card_indices table Array of card indices to select
 --- @return table Result with success status and optional error message
-function I.select_hand(card_indices)
+function I.select_hand(card_indices, boss_name)
     if not card_indices or type(card_indices) ~= "table" then
         return { success = false, error = "Invalid card indices parameter" }
     end
@@ -86,10 +102,12 @@ function I.select_hand(card_indices)
         return { success = false, error = "No hand or cards available" }
     end
 
+    local handsize = #G.hand.cards;
+
     -- Validate all card indices are within bounds
     for i = 1, #card_indices do
         local card_index = card_indices[i]
-        if not card_index or card_index < 1 or card_index > #G.hand.cards then
+        if not card_index or card_index < 1 or card_index > handsize then
             return { success = false, error = "Card index out of bounds: " .. tostring(card_index) }
         end
         if not G.hand.cards[card_index] then
@@ -120,6 +138,97 @@ function I.discard_hand()
     utils.log_input("select_hand " .. utils.completed_success_msg)
     return { success = true }
 end
+---Used for buying cards in the shop
+function I.buy_card(slot)
+    if not slot or type(slot) ~= "number" then
+        return { success = false, error = "Invalid slot parameter" }
+    end
 
+    if not G.shop_jokers or not G.shop_jokers.cards then
+        return { success = false, error = "Shop not available" }
+    end
+
+    if slot < 1 or slot > #G.shop_jokers.cards then
+        return { success = false, error = "Slot index out of bounds: " .. tostring(slot) }
+    end
+
+    local card = G.shop_jokers.cards[slot]
+    if not card then
+        return { success = false, error = "No card in slot: " .. tostring(slot) }
+    end
+
+    if G.GAME.dollars < card.cost then
+        return { success = false, error = "Cannot afford card, cost: " .. tostring(card.cost) }
+    end
+    
+    G.FUNCS.buy_from_shop({ config = {ref_table = card } })
+    utils.log_input("buy_card slot " .. tostring(slot) .. " " .. utils.completed_success_msg)
+    return { success = true }
+end
+
+---For selling a joker
+function I.sell_joker(slot)
+    if not slot or type(slot) ~= "number" then
+        return { success = false, error = "Invalid slot parameter" }
+    end
+
+    if not G.jokers or not G.jokers.cards then
+        return { success = false, error = "No jokers available" }
+    end
+
+    if slot < 1 or slot > #G.jokers.cards then
+        return { success = false, error = "Joker slot out of bounds: " .. tostring(slot) }
+    end
+
+    local card = G.jokers.cards[slot]
+    if not card then
+        return {success = false, error = "No joker in slot: " .. tostring(slot) }
+    end
+
+    card:sell_card()
+    utils.log_input("sell_joker slot " .. tostring(slot) .. " " .. utils.completed_success_msg)
+    return { success = true}
+end
+
+---For rerolling the joker/card options
+function I.reroll_shop()
+    if not G.GAME then
+        return{ success = false, error = "Game not avalible" }
+    end
+
+    local reroll_cost = G.GAME.current_round.reroll_cost or 5
+    if G.GAME.dollars < reroll_cost then
+        return { success = false, error = "Cannot afford reroll, cost: " .. tostring(reroll_cost) }
+    end
+
+    G.FUNCS.reroll_shop()
+    utils.log_input("reroll_shop " .. utils.completed_success_msg)
+    return { success = true }
+end
+
+---for skipping the shop
+function I.skip_shop()
+    G.FUNCS.toggle_shop()
+    utils.log_input("skip_shop " .. utils.completed_success_msg)
+    return { success = true }
+end
+---for cashing out
+function I.cash_out()
+    if not G.GAME then
+        return { success = false, error = "Game not available" }
+    end
+
+    local ok, err = pcall(function()
+        G.FUNCS.cash_out({ config = {} })
+    end)
+
+    if not ok then
+        utils.log_input("cash_out ERROR: " .. tostring(err))
+        return { success = false, error = tostring(err) }
+    end
+
+    utils.log_input("cash_out " .. utils.completed_success_msg)
+    return { success = true }
+end
 
 return I

@@ -22,6 +22,7 @@ function O.get_game_state()
     return {
         -- Basic state info
         state = G.STATE,
+        blind_name = G.GAME and G.GAME.blind and G.GAME.blind.name or "None",
         game_over = game_over,
         game_win = game_win,
 
@@ -42,6 +43,12 @@ function O.get_game_state()
 
         -- Current seed
         seed = G.GAME and G.GAME.pseudorandom.seed or 0,
+
+        gold = O.get_gold(),
+
+        jokers = O.get_jokers(),
+
+        shop = {items = O.get_shop_items() },
     }
 end
 
@@ -49,9 +56,12 @@ end
 --- @return number Chips needed to beat current blind
 function O.get_blind_chips()
     if not G.GAME or not G.GAME.blind then
-        return 300  -- TODO probably fix this if we are doing more than one blind Default ante 1 small blind requirement
+        return 300-- TODO probably fix this if we are doing more than one blind Default ante 1 small blind requirement
     end
-    return G.GAME.blind.chips or 300
+    local ok, chips = pcall(function()
+        return G.GAME.blind.chips
+    end)
+    return (ok and chips) or 300
 end
 
 --- Get hand information
@@ -116,6 +126,41 @@ function O.get_current_hand_scoring()
         score = score,
         handname = handname
     }
+end
+
+--- Gets the current gold
+function O.get_gold()
+    return G.GAME and G.GAME.dollars or 0
+end
+
+--- Gets the current Jokers
+function O.get_jokers()
+    local jokers = {}
+    if G.jokers and G.jokers.cards then
+        for i, card in ipairs(G.jokers.cards) do
+            table.insert(jokers, {
+                name = card.config.center.name or "Unknown",
+                sell_cost = card.sell_cost or 1,
+                slot = i
+            })
+        end
+    end
+    return jokers
+end
+
+function O.get_shop_items()
+    local items = {}
+    if G.shop_jokers and G.shop_jokers.cards then
+        for i, card in ipairs(G.shop_jokers.cards) do
+            table.insert(items, {
+                name = card.config.center.name or "Unknown",
+                cost = card.cost or 999,
+                type = "joker",
+                slot = i
+            })
+        end
+    end
+    return items
 end
 
 return O

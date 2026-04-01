@@ -10,11 +10,10 @@ local comm_enabled = false
 local request_pipe
 local response_pipe
 
-local os_name = love.system.getOS()
-os_name = "Linux" -- For testing on non-Love2D environments, set to "Windows" or "Linux"
+local os_name = os.getenv("OS") or love.system.getOS()
 local instance_id = os.getenv("BALATRO_INSTANCE_ID") or "0" -- Get instance ID from environment variable, default to "0"
 
-if os_name == "Windows" then
+if os_name == "Windows_NT" then
     request_pipe = "\\\\.\\pipe\\balatro_request"
     response_pipe = "\\\\.\\pipe\\balatro_response"
 else
@@ -25,12 +24,45 @@ end
 local request_handle = nil
 local response_handle = nil
 
+-- Communication mode: "pipe" (default) or "socket" (viewer instance)
+local comm_mode = os.getenv("BALATRO_COMM_MODE") or "pipe"
+local socket_host = os.getenv("BALATRO_SOCKET_HOST") or "127.0.0.1"
+local socket_port = tonumber(os.getenv("BALATRO_SOCKET_PORT")) or 9000
+
+local socket_conn = nil  -- LuaSocket connection handle
+
 --- Initialize dual pipe communication with persistent handles
 --- Sets up persistent pipe handles with external AI system
 --- @return nil
 function COMM.init()
-    utils.log_comm("Initializing dual pipe communication...")
+    utils.log_comm("Initializing communication channel. Mode: " .. comm_mode .. "on " .. socket_host .. ":" .. socket_port .. ", OS: " .. os_name)
     comm_enabled = true -- Enable communication, pipes will open on first use
+end
+
+function COMM.ensure_connection_open()
+    if comm_mode == "socket" then
+        utils.log_comm("Initializing socket communication on " .. socket_host .. ":" .. socket_port)
+        return COMM.ensure_socket_open()
+    else
+        utils.log_comm("Initializing dual pipe communication...")
+        return COMM.ensure_pipes_open()
+    end
+end
+
+function COMM.ensure_socket_open()
+    if socket_conn then return true end
+
+    local sock = require("socket")
+    local conn, err = sock.connect(socket_host, socket_port)
+    if not conn then
+        utils.log_comm("ERROR: Cannot connect to socket: " .. tostring(err))
+        return false
+    end
+    conn:setoption("tcp-nodelay", true)
+    conn:settimeout(30) -- Set a timeout for socket operations
+    socket_conn = conn
+    utils.log_comm("Connected to viewer socket at " .. socket_host .. ":" .. socket_port)
+    return true
 end
 
 --- Lazy initialization of pipe handles when first needed
@@ -72,8 +104,8 @@ function COMM.request_action(game_state, available_actions)
     end
 
     -- Lazy initialization - open pipes when first needed
-    if not COMM.ensure_pipes_open() then
-        utils.log_comm("ERROR: Failed to open pipe handles")
+    if not COMM.ensure_connection_open() then
+        utils.log_comm("ERROR: Failed to open communication handles")
         return nil
     end
 
@@ -91,13 +123,28 @@ function COMM.request_action(game_state, available_actions)
         utils.log_comm("ERROR: Failed to encode request JSON")
         return nil
     end
+    
+    local response_json = nil
+    if comm_mode == "socket" then
+        socket_conn:send(json_data .. "\n")
+        local line, err = socket_conn:receive("*l")
+        if not line then
+            utils.log_comm("ERROR: Socket receive failed: " .. tostring(err))
+            return nil
+        end
+        response_json = line
+    else
+        -- Write request to persistent handle
+        request_handle:write(json_data .. "\n")
+        request_handle:flush() -- Ensure data is sent immediately
 
-    -- Write request to persistent handle
-    request_handle:write(json_data .. "\n")
-    request_handle:flush() -- Ensure data is sent immediately
-
-    -- Read response from persistent handle
-    local response_json = response_handle:read("*line")
+        -- Read response from persistent handle
+        response_json = response_handle:read("*line")
+        if not response_json then
+            utils.log_comm("ERROR: Failed to read response from pipe")
+            return nil
+        end
+    end
 
     if not response_json or response_json == "" then
         utils.log_comm("ERROR: No response received from AI")

@@ -12,10 +12,13 @@ Requirements:
     - Balatro game running with RLBridge mod
     - file_watcher.py should NOT be running (this replaces it)
 """
-
 import logging
+import os
 import time
 from pathlib import Path
+from ai import global_var
+import re
+from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 
 # SB3 imports
 from stable_baselines3.common.callbacks import CheckpointCallback
@@ -30,17 +33,77 @@ from .environment.balatro_env import BalatroEnv
 
 TRAINING_STEPS = 1024  # Total training steps
 
+class WinTracker(BaseCallback):
+    def __init__(self, log_freq=10, verbose=1):
+        super().__init__(verbose)
+        self.log_freq = log_freq
+
+        self.total_episodes = 0
+        self.total_wins = 0
+        self.best_ante = 0
+        self.best_round = 0
+
+    def _win_pct(self):
+        if self.total_episodes == 0:
+            return 0.0
+        return round(100.0 * self.total_wins / self.total_episodes, 2)
+    
+    def _on_step(self) -> bool:
+        dones = self.locals.get("dones", [])
+        infos = self.locals.get("infos", [])
+
+        for done, info in zip(dones, infos):
+            if not done:
+                continue
+
+            self.total_episodes += 1
+
+            won = bool(info.get("won", False))
+            if won:
+                self.total_wins += 1
+            
+            ante = info.get("ante", 0)
+            round_ = info.get("round", 0)
+
+            if ante > self.best_ante or (ante == self.best_ante and round_ > self.best_round):
+                self.best_ante = ante
+                self.best_round = round_
+            
+        #For Tensor
+        if self.n_calls % 1000 == 0:
+            self.logger.record("custom/win_pct",    self._win_pct())
+            self.logger.record("custom/best_ante",  self.best_ante)
+            self.logger.record("custom/best_round", self.best_round)
+            self.logger.record("custom/total_wins", self.total_wins)
+
+        return True
+def update_seed_in_lua(filepath, new_seed):
+    with open(filepath, "r") as f:
+        content = f.read()
+    
+    updated = re.sub(
+        r'(exec_params\.seed\s*=\s*")[^"]*(")',
+        rf'\g<1>{new_seed}\g<2>',
+        content
+    )
+    
+    with open(filepath, "w") as f:
+        f.write(updated)
 
 def setup_logging():
     """Setup logging for training"""
+    env_logger = logging.getLogger('ai.environment.balatro_env')
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler('training.log'),
-            logging.StreamHandler()
+
         ]
     )
+    console = logging.StreamHandler()
+    console.setLevel(logging.WARNING)
+    logging.getLogger('').addHandler(console)
 
 
 def mask_fn(env):
@@ -54,7 +117,7 @@ def create_environment():
     
     # Use ActionMasker wrapper
     env = ActionMasker(env, mask_fn)
-    
+
     # Wrap with Monitor for logging episode stats
     env = Monitor(env, filename="training_monitor.csv")
     
@@ -87,7 +150,7 @@ def create_model(env, model_path=None):
     
     # Load existing model if path provided
     if model_path and Path(model_path).exists():
-        model.load(model_path)
+        model = MaskablePPO.load(model_path, env=env, tensorboard_log="./tensorboard_logs/")
         print(f"Loaded existing model from {model_path}")
     
     return model
@@ -104,6 +167,7 @@ def create_callbacks(save_freq=1000):
         name_prefix="balatro_model"
     )
     callbacks.append(checkpoint_callback)
+    callbacks.append(WinTracker(log_freq =10,verbose=1))
     
     return callbacks
 
@@ -142,7 +206,9 @@ def train_agent(total_timesteps=100000, save_path="./models/balatro_final", resu
         model.learn(
             total_timesteps=total_timesteps,
             callback=callbacks,
-            progress_bar=True
+            progress_bar=True,
+            tb_log_name="balatro_run",   
+            reset_num_timesteps=(resume_from is None)
         )
         
         training_time = time.time() - start_time
@@ -189,7 +255,7 @@ def test_trained_model(model_path, num_episodes=5):
     
     # Create environment and load model
     env = create_environment()
-    model = DQN.load(model_path)
+    model = MaskablePPO.load(model_path)
     
     episode_rewards = []
     
@@ -224,6 +290,21 @@ if __name__ == "__main__":
     # Create necessary directories
     Path("./models").mkdir(exist_ok=True)
     Path("./tensorboard_logs").mkdir(exist_ok=True)
+
+    #Getting the seed to be used
+    user_seed = input("Enter seed(Default Train-JFKGEEMG): ")
+    global_var.choosen_seed = user_seed
+    if os.name == 'nt':
+        appdata_path = os.getenv('APPDATA')
+
+        balatro_mod_path = Path(appdata_path) / "Balatro" / "Mods" / "RLBridge" / "ai.lua"
+
+        update_seed_in_lua(balatro_mod_path, user_seed)
+    else:
+        home = Path.home()
+        balatro_mod_path = home / ".local" / "share" / "love" / "Mods" / "RLBridge" / "ai.lua"
+
+        update_seed_in_lua(balatro_mod_path, user_seed)
     
     # Train the agent
     print("\n🎮 Starting Balatro RL Training!")
