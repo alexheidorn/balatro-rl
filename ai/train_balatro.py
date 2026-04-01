@@ -112,10 +112,10 @@ def mask_fn(env):
     """Extract action mask from the environment's action_masks() method"""
     return env.action_masks()
 
-def make_env(worker_id: int = 0):
+def make_env(worker_id: int):
     """Utility function for creating a single environment instance with a worker ID"""
     def _init():
-        os.environ["BALATRO_WORKER_ID"] = str(worker_id)  # Set worker ID in environment variable
+        # os.environ["BALATRO_WORKER_ID"] = str(worker_id)  # Set worker ID in environment variable
         env = BalatroEnv(worker_id=worker_id)  # Pass worker ID to environment constructor
         env = ActionMasker(env, mask_fn)  # Wrap with ActionMasker
         env = Monitor(env, filename=f"monitor_worker_{worker_id}.csv")  # Wrap with Monitor for logging
@@ -310,9 +310,16 @@ if __name__ == "__main__":
     
     # Train the agent
     print("\n🎮 Starting Balatro RL Training!")
-    print("Setup steps:")
-    print("1. ✅ Balatro is running with RLBridge mod")
-    print("2. ✅ Balatro is in menu state")
+    print("Using COMM_MODE:", os.getenv("BALATRO_COMM_MODE", "Default (dual pipes)"))
+    if os.getenv("BALATRO_COMM_MODE") == "socket":
+        print(f"🎮 Starting {NUM_WORKERS} environment workers...")
+        print(f"   Listening on ports {9000} - {9000 + NUM_WORKERS - 1}")
+        print(f"   Now run: ./launch_balatro.sh")
+        print(f"   Then press 'R' in each Balatro window")
+    else:
+        print("Setup steps:")
+        print("1. ✅ Balatro is running with RLBridge mod")
+        print("2. ✅ Balatro is in menu state")
 
     input("Press Enter to start training then press 'R' in Balatro)...")
     

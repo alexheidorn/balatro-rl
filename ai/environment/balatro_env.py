@@ -40,6 +40,8 @@ class BalatroEnv(gym.Env):
         #Change this to change the seed
         self.seed = global_var.choosen_seed
 
+        self.pipe_io = None
+
         worker_id = int(os.getenv("BALATRO_WORKER_ID", worker_id))
         # Initialize communication system — swap transport based on env var
         if os.getenv("BALATRO_COMM_MODE") == "socket":
