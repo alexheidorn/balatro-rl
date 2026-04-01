@@ -33,7 +33,7 @@ class BalatroSocketIO:
         self._wait_for_connection()
 
     def _wait_for_connection(self):
-        self.logger.info(f"Viewer socket listening on {self.host}:{self.port}")
+        self.logger.warning(f"Worker listening on {self.host}:{self.port}...")
         self.logger.info("Start Balatro on your PC and press 'R' to connect...")
 
         self._server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -43,7 +43,7 @@ class BalatroSocketIO:
 
         self._conn, addr = self._server_sock.accept()
         self._conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self.logger.info(f"Balatro connected from {addr}")
+        self.logger.warning(f"✅ Worker on port {self.port} connected from {addr}")
 
         # Wrap socket in file objects — same readline()/write() interface as pipes
         self.request_handle = self._conn.makefile('r', encoding='utf-8')
