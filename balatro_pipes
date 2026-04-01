@@ -1,0 +1,14 @@
+#!/bin/sh
+gamename="Balatro"
+exename="$gamename"
+defaultpath="/home/$USER/.steam/debian-installation/steamapps/common/$gamename"
+
+WORKER_ID=${1:-0} # Get worker ID from first argument, default to 0 if not provided
+
+# Environment setup
+export BALATRO_OS="Linux" # Set the OS environment variable for the game
+export BALATRO_COMM_MODE="pipes" # Options: "socket", "pipes"
+export BALATRO_WORKER_ID="$WORKER_ID" # Set the instance ID for the game
+
+cd "$defaultpath"
+LD_PRELOAD=$defaultpath/liblovely.so love $exename.exe "$@"
