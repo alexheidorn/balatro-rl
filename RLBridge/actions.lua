@@ -7,14 +7,20 @@ local utils = require("utils")
 local ACTIONS = {}
 
 -- Action constants (like G.STATES pattern)
--- Core gameplay actions are 1,2,3 for clean AI mapping
+-- Core gameplay actions
 ACTIONS.SELECT_HAND = 1
 ACTIONS.PLAY_HAND = 2
 ACTIONS.DISCARD_HAND = 3
--- Auto-executed actions (not exposed to AI)
+
 ACTIONS.START_RUN = 4
 ACTIONS.SELECT_BLIND = 5
 ACTIONS.RESTART_RUN = 6
+
+ACTIONS.BUY_JOKER = 7
+ACTIONS.SELL_JOKER = 8
+ACTIONS.REROLL_SHOP = 9
+ACTIONS.SKIP_SHOP = 10
+ACTIONS.CASH_OUT = 11
 
 -- Action mapping tables
 local ACTION_IDS = {
@@ -24,6 +30,11 @@ local ACTION_IDS = {
     start_run = ACTIONS.START_RUN,
     select_blind = ACTIONS.SELECT_BLIND,
     restart_run = ACTIONS.RESTART_RUN,
+    buy_joker = ACTIONS.BUY_JOKER,
+    sell_joker = ACTIONS.SELL_JOKER,
+    reroll_shop = ACTIONS.REROLL_SHOP,
+    skip_shop = ACTIONS.SKIP_SHOP,
+    cash_out = ACTIONS.CASH_OUT
 }
 
 local ID_TO_ACTION = {
@@ -33,6 +44,11 @@ local ID_TO_ACTION = {
     [ACTIONS.START_RUN] = "start_run",
     [ACTIONS.SELECT_BLIND] = "select_blind",
     [ACTIONS.RESTART_RUN] = "restart_run",
+    [ACTIONS.BUY_JOKER] = "buy_joker",
+    [ACTIONS.SELL_JOKER] = "sell_joker",
+    [ACTIONS.REROLL_SHOP] = "reroll_shop",
+    [ACTIONS.SKIP_SHOP] = "skip_shop",
+    [ACTIONS.CASH_OUT] = "cash_out"
 }
 
 -- Centralized action state tracking
@@ -55,7 +71,7 @@ end
 local action_registry = {
     start_run = {
         execute = function(params)
-            return input.start_run()
+            return input.start_run(params)
         end,
         available_when = function()
             return G.STATE == G.STATES.MENU and not action_state.start_run
@@ -71,7 +87,9 @@ local action_registry = {
     },
     select_hand = {
         execute = function(params)
-            return input.select_hand(params)
+            local boss_name = G.GAME and G.GAME.blind and G.GAME.blind.name or nil
+            print(boss_name)
+            return input.select_hand(params, boss_name)
         end,
         available_when = function()
             return G.STATE == G.STATES.SELECTING_HAND and G.hand and G.hand.cards and #G.hand.highlighted <= 0 and
@@ -105,10 +123,70 @@ local action_registry = {
     },
     restart_run = {
         execute = function(params)
-            return input.start_run()
+            utils.log_input("restart_run execute called, params: " .. tostring(params))
+            if params then
+                utils.log_input("params.seed = " .. tostring(params.seed))
+            end
+            return input.start_run(params)
         end,
         available_when = function()
-            return (G.STATE == G.STATES.GAME_OVER or G.STATE == G.STATES.ROUND_EVAL) and not action_state.restart_run
+            return (G.STATE == G.STATES.GAME_OVER) and not action_state.restart_run
+        end,
+    },
+    buy_joker = {
+        execute = function(params)
+            local slot = params and params[1] or 1
+            if G.shop_jokers and G.shop_jokers.cards then
+                local card = G.shop_jokers.cards[slot]
+                if card and card.config and card.config.center
+                    and card.config.center.set == "Joker" then
+                        return input.buy_card(slot)
+                end
+            end
+            return { success = false, error = "No joker in that slot" }
+        end,
+        available_when = function()
+            return G.STATE == G.STATES.SHOP
+                and G.shop_jokers
+                and G.shop_jokers.cards
+                and #G.shop_jokers.cards > 0
+        end,
+    },
+    sell_joker = {
+        execute = function(params)
+            local slot = params and params[1] or 1
+            return input.sell_joker(slot)
+        end,
+        available_when = function()
+            return G.STATE == G.STATES.SHOP 
+                and G.jokers and #G.jokers.cards > 0
+        end,
+    },
+    reroll_shop = {
+        execute = function(params)
+            return input.reroll_shop()
+        end,
+        available_when = function()
+            return G.STATE == G.STATES.SHOP
+                and G.GAME.dollars >= G.GAME.current_round.reroll_cost
+        end,
+    },
+    skip_shop = {
+        execute = function(params)
+            return input.skip_shop()
+        end,
+        available_when = function()
+            return G.STATE == G.STATES.SHOP
+        end,
+    },
+    cash_out = {
+        execute = function(params)
+            utils.log_ai("ROUND_EVAL value = " .. tostring(G.STATES.ROUND_EVAL))
+            utils.log_ai("Current G.STATE = " .. tostring(G.STATE))
+            return input.cash_out()
+        end,
+        available_when = function()
+            return G.STATE == G.STATES.ROUND_EVAL and not action_state.cash_out
         end,
     },
 }
@@ -165,7 +243,11 @@ function ACTIONS.execute_action(action_id, params)
     if action_def and action_def.execute then
         local result = action_def.execute(params)
         if result.success then
-            ACTIONS.mark_executed(action_name)
+            if action_name == "play_hand" or action_name == "discard_hand" then
+                ACTIONS.reset_state()
+            else
+                ACTIONS.mark_executed(action_name)
+            end
         end
         return result
     end

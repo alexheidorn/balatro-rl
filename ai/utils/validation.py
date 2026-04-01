@@ -129,7 +129,6 @@ class ResponseValidator:
         assert isinstance(response["action"], int)
         assert isinstance(response["params"], list)
         
-        # Validate action is within valid range (1=SELECT_HAND, 2=PLAY_HAND, 3=DISCARD_HAND)
-        valid_actions = [1, 2, 3]
+        valid_actions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         assert response["action"] in valid_actions, f"Invalid action ID: {response['action']}"
 
