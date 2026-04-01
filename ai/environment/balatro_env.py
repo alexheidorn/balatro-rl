@@ -213,6 +213,7 @@ class BalatroEnv(gym.Env):
             )
         # Update current state
         self.current_state = next_request
+        is_endless_enabled = self.current_state.get('auto_endless_config', False)
         self._detect_phase(next_request)
         game_state = self.current_state.get('game_state', {})
         
@@ -250,7 +251,12 @@ class BalatroEnv(gym.Env):
                 score=reward,
                 chips=game_state.get('chips', 0)
             )
-            return observation, reward, False, False, {"win_detected": True}
+            terminated = not is_endless_enabled 
+
+            return observation, reward, terminated, False, {
+                "win_detected": True, 
+                "is_endless": is_endless_enabled
+            }
         # Process new state for SB3
         observation = self.state_mapper.process_game_state(self.current_state)
         # Calculate reward using expert reward calculator

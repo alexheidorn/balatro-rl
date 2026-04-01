@@ -46,6 +46,15 @@ end
 --- Monitors game state changes, handles communication, and executes AI actions
 --- @return nil
 function AI.update()
+    if win_screen_active then
+        win_screen_timer = win_screen_timer + (G.FPS_CAP and (1/G.FPS_CAP) or 0.016)
+        if win_screen_timer > 10.0 then
+            utils.log_ai("Win screen timeout — forcing resume")
+            win_screen_active = false
+            win_screen_timer = 0
+        end
+        return
+    end
     if G.CONTROLLER.locking_buttons or G.CONTROLLER.interrupt_inputs or G.CONTROLLER.locks[1] then
         return 
     end
@@ -238,6 +247,9 @@ function AI.should_auto_skip(current_state, available_actions)
     if current_state.state == G.STATES.BLIND_SELECT and #available_actions == 1 and available_actions[1] == 5 then
         return true
     end
+    if current_state.state == G.STATES.WIN and G.GAME.win then
+        return true
+    end
 
     if current_state.state == G.STATES.GAME_OVER then
         return false
@@ -273,12 +285,37 @@ end
 --- @param available_actions table Available actions list  
 function AI.execute_auto_skip_action(current_state, available_actions)
     if current_state.state == G.STATES.ROUND_EVAL then
+        local current_ante = G.GAME and G.GAME.round_resets and G.GAME.round_resets.ante or 0
+        local blind_obj = G.GAME and G.GAME.blind or nil
+        local is_boss = blind_obj and blind_obj.boss or false
+        local chips_beaten = G.GAME and blind_obj and (G.GAME.chips >= blind_obj.chips) or false
+
+        if current_ante == 9 and is_boss then
+            utils.log_ai("Ante 8 boss beaten — restarting run...")
+            if G.FUNCS and G.FUNCS.go_to_menu then
+                G.FUNCS.go_to_menu()
+                G.E_MANAGER:add_event(Event({
+                    trigger = 'after', delay = 1.5,
+                    func = function()
+                        if G.FUNCS.start_run then
+                            G.FUNCS.start_run()
+                        elseif G.FUNCS.play_new_run then
+                            G.FUNCS.play_new_run()
+                        end
+                        return true
+                    end
+                }))
+            end
+            state_transition_timer = 2.0
+            last_combined_hash = nil
+            return
+        end
+        -- Normal cash out
         local input = require("input")
         local result = input.cash_out()
-        utils.log_ai("Auto cash_out: " .. (result.success and "success" or result.error))
         if result.success then
             cash_out_executed = true
-            state_transition_timer = 0.25
+            state_transition_timer = 0.5
         end
         return
     end
