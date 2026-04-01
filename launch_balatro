@@ -1,0 +1,8 @@
+#!/bin/sh
+NUM_WORKERS={1:-4} # Number of parallel instances to launch
+for i in $(seq 0 $((NUM_WORKERS - 1))); do
+    ./run_lovely_linux.sh $i &
+    sleep 2 # Stagger launches to avoid resource contention
+done
+echo "Launched $NUM_WORKERS Balatro instances with pipes communication mode."
+wait # Wait for all background processes to finish before exiting the script
