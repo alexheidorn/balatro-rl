@@ -1,0 +1,1 @@
+/home/saga/run_lovely_linux.sh
