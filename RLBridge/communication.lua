@@ -14,8 +14,8 @@ local os_name = os.getenv("OS") or love.system.getOS()
 local instance_id = os.getenv("BALATRO_INSTANCE_ID") or "0" -- Get instance ID from environment variable, default to "0"
 
 if os_name == "Windows_NT" then
-    request_pipe = "\\\\.\\pipe\\balatro_request"
-    response_pipe = "\\\\.\\pipe\\balatro_response"
+    request_pipe = "\\\\.\\pipe\\balatro_request_" .. instance_id
+    response_pipe = "\\\\.\\pipe\\balatro_response_" .. instance_id
 else
     request_pipe = "/tmp/balatro_request_" .. instance_id
     response_pipe = "/tmp/balatro_response_" .. instance_id

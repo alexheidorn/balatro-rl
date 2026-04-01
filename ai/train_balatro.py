@@ -23,6 +23,7 @@ from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 # SB3 imports
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import SubprocVecEnv
 
 # SB3 Contrib for action masking
 from sb3_contrib import MaskablePPO
@@ -32,6 +33,7 @@ from sb3_contrib.common.wrappers import ActionMasker
 from .environment.balatro_env import BalatroEnv
 
 TRAINING_STEPS = 1024  # Total training steps
+NUM_WORKERS = 4        # Number of parallel environments for training
 
 class WinTracker(BaseCallback):
     def __init__(self, log_freq=10, verbose=1):
@@ -110,18 +112,18 @@ def mask_fn(env):
     """Extract action mask from the environment's action_masks() method"""
     return env.action_masks()
 
-def create_environment():
-    """Create and wrap the Balatro environment"""
-    # Create base environment
-    env = BalatroEnv()
-    
-    # Use ActionMasker wrapper
-    env = ActionMasker(env, mask_fn)
+def make_env(worker_id: int = 0):
+    """Utility function for creating a single environment instance with a worker ID"""
+    def _init():
+        os.environ["BALATRO_WORKER_ID"] = str(worker_id)  # Set worker ID in environment variable
+        env = BalatroEnv(worker_id=worker_id)  # Pass worker ID to environment constructor
+        env = ActionMasker(env, mask_fn)  # Wrap with ActionMasker
+        env = Monitor(env, filename=f"monitor_worker_{worker_id}.csv")  # Wrap with Monitor for logging
+        return env
+    return _init
 
-    # Wrap with Monitor for logging episode stats
-    env = Monitor(env, filename="training_monitor.csv")
-    
-    return env
+def create_environment():
+    return SubprocVecEnv([make_env(i) for i in range(NUM_WORKERS)])
 
 
 def create_model(env, model_path=None):

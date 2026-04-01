@@ -117,8 +117,8 @@ class BalatroPipeIO:
         self.response_handle = None
         
         if platform.system() == "Windows":
-            self.request_pipe = r'\\.\pipe\balatro_request'
-            self.response_pipe = r'\\.\pipe\balatro_response'
+            self.request_pipe = rf'\\.\pipe\balatro_request_{instance_id}'
+            self.response_pipe = rf'\\.\pipe\balatro_response_{instance_id}'
         else:
             self.request_pipe = f'/tmp/balatro_request_{instance_id}'
             self.response_pipe = f'/tmp/balatro_response_{instance_id}'

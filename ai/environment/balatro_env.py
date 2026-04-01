@@ -30,7 +30,7 @@ class BalatroEnv(gym.Env):
     without knowing about the underlying pipe communication system.
     """
     
-    def __init__(self):
+    def __init__(self, worker_id: int = 0):
         super().__init__()
         self.logger = logging.getLogger(__name__)
         self.current_state = None
@@ -40,13 +40,14 @@ class BalatroEnv(gym.Env):
         #Change this to change the seed
         self.seed = global_var.choosen_seed
 
+        worker_id = int(os.getenv("BALATRO_WORKER_ID", worker_id))
         # Initialize communication system — swap transport based on env var
         if os.getenv("BALATRO_COMM_MODE") == "socket":
             self.logger.info("Using socket communication")
             self.pipe_io = BalatroSocketIO(port=int(os.getenv("BALATRO_SOCKET_PORT", 9000)))
         else:
             self.logger.info("Using pipe communication")
-            self.pipe_io = BalatroPipeIO()
+            self.pipe_io = BalatroPipeIO(instance_id=worker_id)
         
         # Initialize reward systems
         self.reward_calculator = BalatroRewardCalculator()
