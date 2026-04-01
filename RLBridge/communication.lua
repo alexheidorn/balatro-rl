@@ -11,7 +11,7 @@ local request_pipe
 local response_pipe
 
 local os_name = os.getenv("OS") or love.system.getOS()
-local worker_id = os.getenv("BALATRO_INSTANCE_ID") or "0" -- Get instance ID from environment variable, default to "0"
+local worker_id = tonumber(os.getenv("BALATRO_WORKER_ID")) or 0 -- Get instance ID from environment variable, default to 0
 
 if os_name == "Windows_NT" then
     request_pipe = "\\\\.\\pipe\\balatro_request_" .. worker_id
