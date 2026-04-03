@@ -10,6 +10,7 @@ import numpy as np
 from typing import Dict, List, Any
 from ..utils.validation import GameStateValidator, ResponseValidator
 import logging
+from .. import global_var
 
 
 def make_onehot(value: int, num_classes: int) -> List[float]:
@@ -179,12 +180,16 @@ class BalatroStateMapper:
             features.extend(card_features)
         
         # Pad or truncate to fixed size 
-        max_cards = 8  # TODO this might have to be updated in future if we go bigger Standard Balatro hand size
+        max_cards = 12  # TODO this might have to be updated in future if we go bigger Standard Balatro hand size
         features_per_card = 21  # 1+5+14+1 = highlighted+suit_onehot+value_onehot+nominal
+        expected_total_size = NON_CARDS_FEATURES + (max_cards * features_per_card)
+
+        features = features[:expected_total_size]
         
         # If no cards in hand, pad with zeros
-        if len(features) == NON_CARDS_FEATURES:
-            features.extend([0.0] * (max_cards * features_per_card))
+        padding_needed = expected_total_size - len(features)
+        if padding_needed > 0:
+            features.extend([0.0] * padding_needed)
         
         return features
     
@@ -212,11 +217,21 @@ class BalatroStateMapper:
         features.append(float(state.get('game_over', 0)))
         features.append(float(state.get('game_win', 0)))
         features.append(float(state.get('retry_count', 0)))
+        features.extend(self._extract_joker_features(state.get('jokers', [])))
         features.extend(self._extract_hand_features(state.get('hand', {})))
         features.extend(self._extract_current_hand_scoring(state.get('current_hand', {})))
 
         return features
 
+    def _extract_joker_features(self, jokers: List[Dict[str, Any]]) -> List[float]:
+        features = []
+        max_jokers = 5
+        for i in range(max_jokers):
+            if i < len(jokers):
+                features.append(1.0) # Slot occupied
+            else:
+                features.append(0.0) # Slot empty
+        return features
     
     def _extract_round_features(self, round: Dict[str, Any]) -> List[float]:
         """
@@ -232,55 +247,42 @@ class BalatroStateMapper:
         features.append(float(round.get('discards_left', 0)))
         return features
 
-
-
     def _extract_current_hand_scoring(self, current_hand: Dict[str, Any]) -> List[float]:
-        """
-        Extract current hand scoring information (chips, mult, score, hand type)
-        
-        Args:
-            current_hand: Current hand scoring data from game state
-            
-        Returns:
-            List with chips, mult, score, and one-hot encoded hand type (16 dimensions total)
-        """
         features = []
-        
-        # Raw scoring values
-        features.append(float(current_hand.get('chips', 0)))
-        features.append(float(current_hand.get('mult', 0)))  
+   
+        try:
+            features.append(float(current_hand.get('chips', 0)))
+        except (ValueError, TypeError):
+            features.append(0.0)
+   
+        try:
+            features.append(float(current_hand.get('mult', 0)))
+        except (ValueError, TypeError):
+            features.append(0.0)
+   
         features.append(float(current_hand.get('score', 0)))
-        
+   
         # Hand type one-hot encoding
         hand_types = [
-            "None",          # 0 - No hand played yet
-            "High Card",     # 1
-            "Pair",          # 2
-            "Two Pair",      # 3
-            "Three of a Kind", # 4
-            "Straight",      # 5
-            "Flush",         # 6
-            "Full House",    # 7
-            "Four of a Kind", # 8
-            "Straight Flush", # 9
-            "Five of a Kind", # 10
-            "Flush House",   # 11
-            "Flush Five"     # 12
+            "None", "High Card", "Pair", "Two Pair", "Three of a Kind",
+            "Straight", "Flush", "Full House", "Four of a Kind",
+            "Straight Flush", "Five of a Kind", "Flush House", "Flush Five"
         ]
-        
+   
         hand_name = current_hand.get('handname', 'None')
-        if not hand_name:
+        if not hand_name or '?' in hand_name:
             hand_name = "None"
-        
+   
         try:
             hand_index = hand_types.index(hand_name)
         except ValueError:
-            hand_index = 0  # Default to "None" if hand type not found
+            hand_index = 0
+
 
         features.extend(make_onehot(hand_index, len(hand_types)))
-        
+   
         return features
-    
+
 class BalatroActionMapper:
     """
     Converts RL actions to Balatro command JSON.
@@ -313,13 +315,30 @@ class BalatroActionMapper:
         """
         ai_action = rl_action[self.slices["action_selection"]].tolist()[0]
         
-        # Map AI indices to Balatro action IDs: 0->1, 1->2, 2->3
-        ai_to_balatro_mapping = {0: 1, 1: 2, 2: 3}  # SELECT_HAND, PLAY_HAND, DISCARD_HAND
+        ai_to_balatro_mapping = {
+            0: 1,   # SELECT_HAND
+            1: 2,   # PLAY_HAND
+            2: 3,   # DISCARD_HAND
+            3: 4,   # START_RUN
+            4: 5,   # SELECT_BLIND
+            5: 6,   # RESTART_RUN
+            6: 7,   # BUY_JOKER
+            7: 8,   # SELL_JOKER
+            8: 9,   # REROLL_SHOP
+            9: 10,  # SKIP_SHOP
+            10: 11, # CASH_OUT
+        }
         balatro_action_id = ai_to_balatro_mapping.get(ai_action, 1)  # Default to SELECT_HAND
+        if balatro_action_id is None:
+            balatro_action_id = 1
+        if global_var.isShop == True:
+            params = self._extract_shop_params(rl_action, balatro_action_id)
+        else:
+            params = self._extract_select_hand_params(rl_action)
         
         response_data = {
             "action": balatro_action_id,
-            "params": self._extract_select_hand_params(rl_action),
+            "params": params,
         }
         self.response_validator.validate_response(response_data)
 
@@ -343,4 +362,12 @@ class BalatroActionMapper:
         card_indices = raw_action[self.slices["card_indices"]]
         return [i + 1 for i, val in enumerate(card_indices) if val == 1]
 
-
+    def _extract_shop_params(self, rl_action: np.ndarray, balatro_action_id: int) -> List[int]:
+        if balatro_action_id == 7:
+            shop_slot = rl_action[self.slices["shop_slot"]].tolist()[0]
+            return [shop_slot + 1]
+        elif balatro_action_id == 8:
+            joker_slot = rl_action[self.slices["joker_slot"]].tolist()[0]
+            return [joker_slot + 1]
+        else:
+            return []

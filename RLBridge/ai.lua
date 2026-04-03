@@ -14,7 +14,14 @@ local last_combined_hash = nil
 local pending_action = nil
 local rl_training_active = false
 local last_key_pressed = nil
+local cash_out_executed = false
 local retry_count = 0
+local state_transition_timer = 0
+
+local blind_forced = false
+local blind_force_timer = 0
+
+local SHOP_DEBUG = true -- Set to true to enable shop state debug logging
 
 --- Initialize AI system
 --- Sets up communication and prepares the AI for operation
@@ -41,7 +48,24 @@ end
 --- Monitors game state changes, handles communication, and executes AI actions
 --- @return nil
 function AI.update()
+    if win_screen_active then
+        win_screen_timer = win_screen_timer + (G.FPS_CAP and (1/G.FPS_CAP) or 0.016)
+        if win_screen_timer > 10.0 then
+            utils.log_ai("Win screen timeout — forcing resume")
+            win_screen_active = false
+            win_screen_timer = 0
+        end
+        return
+    end
+    if G.CONTROLLER.locking_buttons or G.CONTROLLER.interrupt_inputs or G.CONTROLLER.locks[1] then
+        return 
+    end
     -- Check for key press to start/stop RL training
+    if state_transition_timer > 0 then
+        state_transition_timer = state_transition_timer - (G.FPS_CAP and (1/G.FPS_CAP) or 0.016)
+        return -- Exit early, we are in cooldown
+    end
+
     if last_key_pressed then
         if last_key_pressed == "r" then
             if not rl_training_active then
@@ -61,16 +85,42 @@ function AI.update()
     -- Get current game state
     local current_state = output.get_game_state()
     local available_actions = action.get_available_actions()
+    
+    if SHOP_DEBUG then
+    ---Comment out when not debugging
+        if current_state.state == G.STATES.MENU or current_state.state == G.STATES.BLIND_SELECT then
+            blind_forced = false
+            blind_force_timer = 0
+        end
+        if not blind_forced and G.STATE == G.STATES.SELECTING_HAND then
+            local input = require("input")
+            input.force_beat_blind()
+            blind_forced = true
+        end
+    end
+
+    if current_state.state ~= G.STATES.ROUND_EVAL then
+        cash_out_executed = false
+        mr_bones_cashed_out = false
+        last_combined_hash = nil
+    end
 
     -- Don't continue if state = -1
-    if current_state.state == -1 then
-        return
-    end
+        if current_state.state == -1 then
+            return
+        end
 
-    -- Don't continue if there are no actions for the AI to do
-    if next(available_actions) == nil then
-        return
-    end
+        -- Auto-skip MUST come before empty actions check
+        if AI.should_auto_skip(current_state, available_actions) then
+            AI.execute_auto_skip_action(current_state, available_actions)
+            last_combined_hash = AI.hash_combined_state(output.get_game_state(), action.get_available_actions())
+            return
+        end
+
+        -- Don't continue if there are no actions for the AI to do
+        if next(available_actions) == nil then
+            return
+        end
 
     -- Create combined hash to detect meaningful changes
     local combined_hash = AI.hash_combined_state(current_state, available_actions)
@@ -83,16 +133,16 @@ function AI.update()
 
         action.reset_state()
 
-        -- Auto-skip trivial actions (don't send to AI)
         if AI.should_auto_skip(current_state, available_actions) then
             AI.execute_auto_skip_action(current_state, available_actions)
+            last_combined_hash = AI.hash_combined_state(output.get_game_state(), action.get_available_actions())
             return
         end
 
         -- Add retry_count to current state
         current_state.retry_count = retry_count
         
-        -- Request action from AI (only for core gameplay)
+        -- Request action from AI (only if NOT auto-skipped)
         local ai_response = communication.request_action(current_state, available_actions)
 
         if ai_response then
@@ -114,18 +164,32 @@ function AI.update()
         end
         
         if action_still_valid then
-            local result = action.execute_action(pending_action.action, pending_action.params)
+            local exec_params = pending_action.params or {}
+            if pending_action.seed then
+                exec_params.seed = pending_action.seed
+            end
+            local result = action.execute_action(pending_action.action, exec_params)
             if result.success then
                 utils.log_ai("Action executed successfully: " .. pending_action.action)
+                if pending_action.action == 11 or current_state.state == G.STATES.ROUND_EVAL then
+                    state_transition_timer = 0.25
+                elseif pending_action.action == 5 then
+                    state_transition_timer = 0.5
+                elseif current_state.state == G.STATES.BLIND_SELECT then
+                    state_transition_timer = 0.5
+                elseif current_state.state == G.STATES.SHOP then
+                    state_transition_timer = 0.1
+                else
+                    state_transition_timer = 0.01 
+                end
                 retry_count = 0  -- Reset retry count on success
                 pending_action = nil
+                last_combined_hash = AI.hash_combined_state(output.get_game_state(), action.get_available_actions())
                 utils.log_ai("\n\n\n")
             else
                 utils.log_ai("Action failed: " .. (result.error or "Unknown error"))
                 retry_count = retry_count + 1
                 utils.log_ai("Retry count: " .. retry_count)
-                -- Keep pending_action to retry on next frame
-                -- Force state recheck to send updated state with retry_count
                 last_combined_hash = nil
             end
         else
@@ -143,15 +207,21 @@ end
 --- @param available_actions table Available actions list
 --- @return string Combined hash representing state + actions
 function AI.hash_combined_state(game_state, available_actions)
+    if not game_state or (G.STATE == G.STATES.SHOP and not G.shop) then
+        return "WAITING"
+    end
     -- State components
     local state_parts = {
+        G.STATE or 0,
         game_state.state or 0,
+        game_state.gold or 0,
         game_state.chips or 0,
         game_state.blind_chips or 0,
         (game_state.round and game_state.round.hands_left) or 0,
         (game_state.round and game_state.round.discards_left) or 0,
         (game_state.hand and game_state.hand.size) or 0,
         (game_state.hand and game_state.hand.highlighted_count) or 0,
+        (game_state.shop and #game_state.shop.items) or 0,
         game_state.game_over or 0
     }
 
@@ -181,9 +251,36 @@ function AI.should_auto_skip(current_state, available_actions)
     if current_state.state == G.STATES.BLIND_SELECT and #available_actions == 1 and available_actions[1] == 5 then
         return true
     end
+    if current_state.state == G.STATES.WIN and G.GAME.win then
+        return true
+    end
+
+    if current_state.state == G.STATES.GAME_OVER then
+        return false
+    end
     
-    -- Don't auto-skip anything else - core actions (1,2,3) go to AI
+    -- Auto-skip ROUND_EVAL
+    if current_state.state == G.STATES.ROUND_EVAL then
+        local is_busy = false
+        if G.CONTROLLER and G.CONTROLLER.queue and G.CONTROLLER.locks then
+            local queue_size = #G.CONTROLLER.queue
+            local locks_size = 0
+            for _ in pairs(G.CONTROLLER.locks) do locks_size = locks_size + 1 end
     
+            if queue_size > 0 or locks_size > 0 then
+                is_busy = true
+            end
+        end
+
+        if is_busy then 
+            return false 
+        end
+    
+        if #available_actions > 0 and not cash_out_executed then
+            return true
+        end
+    end
+
     return false
 end
 
@@ -191,10 +288,51 @@ end
 --- @param current_state table Current game state
 --- @param available_actions table Available actions list  
 function AI.execute_auto_skip_action(current_state, available_actions)
+    if current_state.state == G.STATES.ROUND_EVAL then
+        local current_ante = G.GAME and G.GAME.round_resets and G.GAME.round_resets.ante or 0
+        local blind_obj = G.GAME and G.GAME.blind or nil
+        local is_boss = blind_obj and blind_obj.boss or false
+        local chips_beaten = G.GAME and blind_obj and (G.GAME.chips >= blind_obj.chips) or false
+
+        if current_ante == 9 and is_boss then
+            utils.log_ai("Ante 8 boss beaten — restarting run...")
+            if G.FUNCS and G.FUNCS.go_to_menu then
+                G.FUNCS.go_to_menu()
+                G.E_MANAGER:add_event(Event({
+                    trigger = 'after', delay = 1.5,
+                    func = function()
+                        if G.FUNCS.start_run then
+                            G.FUNCS.start_run()
+                        elseif G.FUNCS.play_new_run then
+                            G.FUNCS.play_new_run()
+                        end
+                        return true
+                    end
+                }))
+            end
+            state_transition_timer = 2.0
+            last_combined_hash = nil
+            return
+        end
+        -- Normal cash out
+        local input = require("input")
+        local result = input.cash_out()
+        if result.success then
+            cash_out_executed = true
+            state_transition_timer = 0.5
+        end
+        return
+    end
+    
     local action_id = available_actions[1]
     utils.log_ai("Auto-executing action: " .. action.get_action_name(action_id))
     
-    local result = action.execute_action(action_id, {})
+    local exec_params = {}
+    --Chnage this to change the seed
+    if action_id == 4 then 
+        exec_params.seed = "JFKGEEMG"
+    end
+    local result = action.execute_action(action_id, exec_params)
     if result.success then
         utils.log_ai("Auto-execution successful: " .. action.get_action_name(action_id))
     else

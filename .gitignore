@@ -25,7 +25,7 @@ MANIFEST
 
 # Virtual environments
 ai/venv/
-venv/
+*venv/
 env/
 ENV/
 env.bak/
@@ -57,7 +57,7 @@ logs/
 .cache/
 
 # Training artifacts (generated during RL training sessions)
-models/
+models*/
 tensorboard_logs/
 training.log
 training_monitor.csv
