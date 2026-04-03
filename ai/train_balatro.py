@@ -14,6 +14,7 @@ Requirements:
 """
 import logging
 import os
+import random
 import time
 from pathlib import Path
 from ai import global_var
@@ -296,12 +297,11 @@ if __name__ == "__main__":
 
     # Determine actual seed string and export to environment for the game mod
     if seed_choice_option == "0":
-        seed_choice = "111111"  # training seed (example)
+        seed_choice = "JFKGEEMG"  # training seed
     elif seed_choice_option == "1":
-        seed_choice = "222222"  # testing seed (example)
+        seed_choice = "11111"  # testing seed (example)
     else:
-        seed_choice = nil
-
+        seed_choice = str(random.randint(1, 999999999))
     global_var.choosen_seed = seed_choice
     # print(f"Using seed: {seed_choice} (option {seed_choice_option})")
 

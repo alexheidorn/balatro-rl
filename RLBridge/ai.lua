@@ -330,7 +330,7 @@ function AI.execute_auto_skip_action(current_state, available_actions)
     local exec_params = {}
     --Chnage this to change the seed
     if action_id == 4 then 
-        exec_params.seed = "JFKGEEMG"
+        exec_params.seed = "943020823"
     end
     local result = action.execute_action(action_id, exec_params)
     if result.success then
