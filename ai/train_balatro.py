@@ -32,7 +32,7 @@ from sb3_contrib.common.wrappers import ActionMasker
 # Our custom environment
 from .environment.balatro_env import BalatroEnv
 
-TRAINING_STEPS = 1024  # Total training steps
+TRAINING_STEPS = 50000  # Total training steps // old default was 250000
 
 class WinTracker(BaseCallback):
     def __init__(self, log_freq=10, verbose=1):
@@ -299,11 +299,11 @@ if __name__ == "__main__":
     if seed_choice_option == "0":
         seed_choice = "JFKGEEMG"  # training seed
     elif seed_choice_option == "1":
-        seed_choice = "11111"  # testing seed (example)
+        seed_choice = "FK76PMFU"  # testing seed (example)
     else:
         seed_choice = str(random.randint(1, 999999999))
     global_var.choosen_seed = seed_choice
-    # print(f"Using seed: {seed_choice} (option {seed_choice_option})")
+    print(f"Using seed: {seed_choice} (option {seed_choice_option})")
 
     if os.name == 'nt':
         appdata_path = os.getenv('APPDATA')
@@ -315,7 +315,7 @@ if __name__ == "__main__":
         home = Path.home()
         balatro_mod_path = home / ".local" / "share" / "love" / "Mods" / "RLBridge" / "ai.lua"
 
-        update_seed_in_lua(balatro_mod_path, user_seed)
+        update_seed_in_lua(balatro_mod_path, seed_choice)
 
     # Train the agent
     print("\n🎮 Starting Balatro RL Training!")

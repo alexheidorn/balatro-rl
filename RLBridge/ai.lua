@@ -21,7 +21,7 @@ local state_transition_timer = 0
 local blind_forced = false
 local blind_force_timer = 0
 
-local SHOP_DEBUG = true -- Set to true to enable shop state debug logging
+local SHOP_DEBUG = false -- Set to true to enable shop state debug logging
 
 --- Initialize AI system
 --- Sets up communication and prepares the AI for operation
@@ -330,7 +330,7 @@ function AI.execute_auto_skip_action(current_state, available_actions)
     local exec_params = {}
     --Chnage this to change the seed
     if action_id == 4 then 
-        exec_params.seed = "943020823"
+        exec_params.seed = "JFKGEEMG"
     end
     local result = action.execute_action(action_id, exec_params)
     if result.success then
