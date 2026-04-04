@@ -14,6 +14,7 @@ Requirements:
 """
 import logging
 import os
+import random
 import time
 from pathlib import Path
 from ai import global_var
@@ -31,7 +32,7 @@ from sb3_contrib.common.wrappers import ActionMasker
 # Our custom environment
 from .environment.balatro_env import BalatroEnv
 
-TRAINING_STEPS = 1024  # Total training steps
+TRAINING_STEPS = 50000  # Total training steps // old default was 250000
 
 class WinTracker(BaseCallback):
     def __init__(self, log_freq=10, verbose=1):
@@ -297,21 +298,31 @@ if __name__ == "__main__":
     Path("./models").mkdir(exist_ok=True)
     Path("./tensorboard_logs").mkdir(exist_ok=True)
 
-    #Getting the seed to be used
-    user_seed = input("Enter seed(Default Train-JFKGEEMG): ")
-    global_var.choosen_seed = user_seed
+    # Query user for seed to use
+    seed_choice_option = input("Input 0 to use the training seed, 1 for the testing seed, or 2 for a random seed: ")
+
+    # Determine actual seed string and export to environment for the game mod
+    if seed_choice_option == "0":
+        seed_choice = "JFKGEEMG"  # training seed
+    elif seed_choice_option == "1":
+        seed_choice = "FK76PMFU"  # testing seed (example)
+    else:
+        seed_choice = str(random.randint(1, 999999999))
+    global_var.choosen_seed = seed_choice
+    print(f"Using seed: {seed_choice} (option {seed_choice_option})")
+
     if os.name == 'nt':
         appdata_path = os.getenv('APPDATA')
 
         balatro_mod_path = Path(appdata_path) / "Balatro" / "Mods" / "RLBridge" / "ai.lua"
 
-        update_seed_in_lua(balatro_mod_path, user_seed)
+        update_seed_in_lua(balatro_mod_path, seed_choice)
     else:
         home = Path.home()
         balatro_mod_path = home / ".local" / "share" / "love" / "Mods" / "RLBridge" / "ai.lua"
 
-        update_seed_in_lua(balatro_mod_path, user_seed)
-    
+        update_seed_in_lua(balatro_mod_path, seed_choice)
+
     # Train the agent
     print("\n🎮 Starting Balatro RL Training!")
     print("Setup steps:")

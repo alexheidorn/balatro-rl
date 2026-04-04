@@ -21,7 +21,7 @@ local state_transition_timer = 0
 local blind_forced = false
 local blind_force_timer = 0
 
-local SHOP_DEBUG = true -- Set to true to enable shop state debug logging
+local SHOP_DEBUG = false -- Set to true to enable shop state debug logging
 
 --- Initialize AI system
 --- Sets up communication and prepares the AI for operation

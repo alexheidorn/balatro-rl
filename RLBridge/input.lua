@@ -7,6 +7,7 @@ local utils = require("utils")
 
 --- Start the basic run
 --- Automatically starts the run in the main menu
+--- @param seed_choice optional override seed value (string or number)
 --- @return table Result with success status and optional error message
 function I.start_run(params)
     local _seed = (params and params.seed) or (G.run_setup_seed and G.setup_seed) or G.forced_seed or nil
