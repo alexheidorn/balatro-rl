@@ -101,6 +101,7 @@ class BalatroEnv(gym.Env):
         current_game_state_ID = current_game_state.get('state', 0)
 
         if current_game_state_ID == 5:
+            print("Blind Beaten!")
             global_var.isShop = True
             global_var.isBlind = False
         else:
@@ -119,9 +120,13 @@ class BalatroEnv(gym.Env):
         self.current_state = None
         self.prev_state = None
         self.game_over = False
-        self.restart_pending = False
         self.actions_taken = []
         
+        if self.restart_pending:
+            self.restart_pending = False
+            restart_response = {"action": 6, "params": [], "seed": self.seed}
+            self.pipe_io.send_response(restart_response)
+
         # Reset reward tracking
         self.reward_calculator.reset()
         
@@ -196,6 +201,23 @@ class BalatroEnv(gym.Env):
             return observation, reward, True, False, {"timeout": True}
         self.logger.info(f"Received request, state: {next_request.get('game_state', {}).get('state', '?')}, actions: {next_request.get('available_actions', [])}")
         
+        #Check for Game Over
+        game_state_early = next_request.get('game_state', {})
+        if game_state_early.get('game_over', 0) == 1:
+            observation = self.state_mapper.process_game_state(self.current_state)
+            reward = self.reward_calculator.calculate_reward(
+                current_state=self.current_state,
+                prev_state=self.prev_state or {},
+                phase=self.current_state,
+            )
+            self.restart_pending = True
+            return observation, reward, True, False, {
+                "ante": game_state_early.get('ante', 0),
+                "round": game_state_early.get('round_count', 0),
+                "chips": game_state_early.get('chips', 0),
+                "won": False,
+                "jokers": game_state_early.get('jokers', [])
+                }
         while next_request.get('game_state', {}).get('state') == 4:
             self.logger.info("Auto-handling START_RUN state, sending restart")
             restart_response = {"action": 6, "params": [], "seed": self.seed}
@@ -216,23 +238,8 @@ class BalatroEnv(gym.Env):
         is_endless_enabled = self.current_state.get('auto_endless_config', False)
         self._detect_phase(next_request)
         game_state = self.current_state.get('game_state', {})
+        jokers = game_state.get('jokers', [])
         
-        # Check for game over condition
-        game_over_flag = game_state.get('game_over', 0)
-        if game_over_flag == 1:
-            observation = self.state_mapper.process_game_state(self.current_state)
-            reward = self.reward_calculator.calculate_reward(
-                current_state=self.current_state,
-                prev_state=self.prev_state or {},
-                phase=self.current_state,
-            )
-            
-            # Auto-send restart command to Balatro
-            restart_response = {"action": 6, "params": [], "seed": self.seed}
-            self.pipe_io.send_response(restart_response)
-            
-            return observation, reward, True, False, {}
-
         # Check for game win condition
         game_win_flag = game_state.get('game_win', 0)
         if game_win_flag == 1:
@@ -254,6 +261,11 @@ class BalatroEnv(gym.Env):
             terminated = not is_endless_enabled 
 
             return observation, reward, terminated, False, {
+                "ante": game_state.get('ante', 0),
+                "round": game_state.get('round_count', 0),
+                "chips": game_state.get('chips', 0),
+                "won": True,
+                "jokers": jokers,
                 "win_detected": True, 
                 "is_endless": is_endless_enabled
             }

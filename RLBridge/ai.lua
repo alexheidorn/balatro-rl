@@ -88,21 +88,21 @@ function AI.update()
     
     if SHOP_DEBUG then
     ---Comment out when not debugging
-        if current_state.state == G.STATES.MENU or current_state.state == G.STATES.BLIND_SELECT then
-            blind_forced = false
-            blind_force_timer = 0
-        end
-        if not blind_forced and G.STATE == G.STATES.SELECTING_HAND then
-            local input = require("input")
-            input.force_beat_blind()
-            blind_forced = true
-        end
-    end
+        --if current_state.state == G.STATES.MENU or current_state.state == G.STATES.BLIND_SELECT then
+            --blind_forced = false
+            --blind_force_timer = 0
+        --end
+        --if not blind_forced and G.STATE == G.STATES.SELECTING_HAND then
+            --local input = require("input")
+            --input.force_beat_blind()
+            --blind_forced = true
+        --end
+    --end
 
-    if current_state.state ~= G.STATES.ROUND_EVAL then
-        cash_out_executed = false
-        mr_bones_cashed_out = false
-        last_combined_hash = nil
+    --if current_state.state ~= G.STATES.ROUND_EVAL then
+        --cash_out_executed = false
+        --mr_bones_cashed_out = false
+        --last_combined_hash = nil
     end
 
     -- Don't continue if state = -1
@@ -318,6 +318,7 @@ function AI.execute_auto_skip_action(current_state, available_actions)
         local input = require("input")
         local result = input.cash_out()
         if result.success then
+            utils.log_ai("Blind Beaten!")
             cash_out_executed = true
             state_transition_timer = 0.5
         end

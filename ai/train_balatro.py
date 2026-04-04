@@ -42,6 +42,8 @@ class WinTracker(BaseCallback):
         self.total_wins = 0
         self.best_ante = 0
         self.best_round = 0
+        self.chips = 0
+        self.jokers = []
 
     def _win_pct(self):
         if self.total_episodes == 0:
@@ -64,16 +66,19 @@ class WinTracker(BaseCallback):
             
             ante = info.get("ante", 0)
             round_ = info.get("round", 0)
+            self.chips = info.get("chips", 0)
+            self.jokers = len(info.get("jokers", []))
+
 
             if ante > self.best_ante or (ante == self.best_ante and round_ > self.best_round):
                 self.best_ante = ante
                 self.best_round = round_
             
-        #For Tensor
-        if self.n_calls % 1000 == 0:
             self.logger.record("custom/win_pct",    self._win_pct())
             self.logger.record("custom/best_ante",  self.best_ante)
             self.logger.record("custom/best_round", self.best_round)
+            self.logger.record("custom/chips", self.chips)
+            self.logger.record("custom/jokers", self.jokers)
             self.logger.record("custom/total_wins", self.total_wins)
 
         return True
@@ -140,7 +145,8 @@ def create_model(env, model_path=None):
         env,
         verbose=1,
         learning_rate=1e-4,
-        n_steps=4096,
+        #CHANGE BASED ON HOW MANY TRAINING STEPS
+        n_steps=512,
         batch_size=64,
         n_epochs=10,
         gamma=0.99,
