@@ -101,7 +101,7 @@ class BalatroEnv(gym.Env):
         current_game_state_ID = current_game_state.get('state', 0)
 
         if current_game_state_ID == 5:
-            print("Blind Beaten!")
+            # print("Blind Beaten!")
             global_var.isShop = True
             global_var.isBlind = False
         else:
