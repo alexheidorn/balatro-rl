@@ -20,8 +20,6 @@ class BalatroRewardCalculator:
         self.previous_chips = 0
         self.previous_hand_played = "None"
         self.blind_already_defeated = False
-        self.current_ante = 1
-        self.best_ante_reached = 1
         
         # Episode tracking for win logging
         self.episode_count = 0
@@ -188,7 +186,7 @@ class BalatroRewardCalculator:
         self.previous_chips = current_chips
         self.previous_hand_played = current_hand_played
         
-        return float(np.clip(reward, -25.0, 25.0))
+        return reward
     
     def reset(self):
         """Reset for new episode - log win details if episode was won"""
@@ -201,11 +199,8 @@ class BalatroRewardCalculator:
             
             # Show win rate on every win for immediate feedback
             self._log_win_rate()
-        else:
-            self._log_episode()
         
         # Reset for next episode
-        self.current_ante = 1
         self.previous_chips = 0
         self.previous_hand_played = "None"
         self.blind_already_defeated = False
@@ -225,6 +220,7 @@ class BalatroRewardCalculator:
         
         # Episode summary
         print(f"🎯 EPISODE {self.episode_count} COMPLETE: WON with {final_chips} chips in {len(self.hands_played)} hands | Total reward: {self.episode_total_reward:.1f}")
+        
         # Hand-by-hand breakdown
         for i, hand in enumerate(self.hands_played, 1):
             print(f"   Hand {i}: {hand['hand_type']} (+{hand['chips']} chips, total: {hand['total_chips']})")
@@ -242,15 +238,3 @@ class BalatroRewardCalculator:
             'total_chips': current_chips
         }
         self.hands_played.append(hand_info)
-
-    def _log_episode():
-        final_chips = self.winning_chips if self.winning_chips > 0 else (max([hand['total_chips'] for hand in self.hands_played]) if self.hands_played else 0)
-
-        # Episode summary
-        print(f"🎯 EPISODE {self.episode_count}: reached ante {self.current_ante}, "
-            f"cleared {self.blind_name} with "
-            f"{self.winning_chips} chips | reward: {self.episode_total_reward:.1f}")  
-        # Hand-by-hand breakdown
-        for i, hand in enumerate(self.hands_played, 1):
-            print(f"   Hand {i}: {hand['hand_type']} (+{hand['chips']} chips, total: {hand['total_chips']})")
-    
