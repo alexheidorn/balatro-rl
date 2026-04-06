@@ -49,7 +49,7 @@ def update_seed_in_lua(filepath, new_seed):
 
 def setup_logging():
     """Setup logging for training"""
-    env_logger = logging.getLogger('ai.environment.balatro_env')
+    # env_logger = logging.getLogger('ai.environment.balatro_env')
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -58,9 +58,9 @@ def setup_logging():
 
         ]
     )
-    console = logging.StreamHandler()
-    console.setLevel(logging.WARNING)
-    logging.getLogger('').addHandler(console)
+    # console = logging.StreamHandler()
+    # console.setLevel(logging.WARNING)
+    # logging.getLogger('').addHandler(console)
 
 
 def mask_fn(env):
@@ -96,9 +96,9 @@ def create_model(env, model_path=None):
         "MlpPolicy",
         env,
         verbose=1,
-        learning_rate=1e-4,
+        learning_rate=3e-4,
         #CHANGE BASED ON HOW MANY TRAINING STEPS
-        n_steps=512,
+        n_steps=4096,
         batch_size=64,
         n_epochs=10,
         gamma=0.99,
