@@ -1,4 +1,5 @@
 from stable_baselines3.common.callbacks import BaseCallback
+from collections import defaultdict
 
 class BalatroMetricsCallback(BaseCallback):
     def __init__(self, log_freq=10, verbose=1):
