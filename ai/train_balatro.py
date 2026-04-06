@@ -54,6 +54,7 @@ class WinTracker(BaseCallback):
     def _on_step(self) -> bool:
         dones = self.locals.get("dones", [])
         infos = self.locals.get("infos", [])
+        needs_dump = False
 
         for done, info in zip(dones, infos):
             if not done:
@@ -81,6 +82,14 @@ class WinTracker(BaseCallback):
             self.logger.record("custom/chips", self.chips)
             self.logger.record("custom/jokers", self.jokers)
             self.logger.record("custom/total_wins", self.total_wins)
+            needs_dump = True
+
+        if needs_dump:
+            print(f"Episode {self.total_episodes} - Win%: {self._win_pct()} - Best Ante: {self.best_ante} - Best Round: {self.best_round} - Chips: {self.chips} - Jokers: {self.jokers} - Total Wins: {self.total_wins}")
+
+        if self.total_episodes % self.log_freq == 0:
+            self.logger.dump(step=self.num_timesteps)
+
 
         return True
 def update_seed_in_lua(filepath, new_seed):
