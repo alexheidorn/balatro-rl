@@ -20,6 +20,8 @@ class BalatroRewardCalculator:
         self.previous_chips = 0
         self.previous_hand_played = "None"
         self.blind_already_defeated = False
+        self.current_ante = 1
+        self.best_ante_reached = 1
         
         # Episode tracking for win logging
         self.episode_count = 0
@@ -81,6 +83,7 @@ class BalatroRewardCalculator:
         current_chips = inner_game_state.get('chips', 0)
         game_over = inner_game_state.get('game_over', 0)
         retry_count = inner_game_state.get('retry_count', 0)
+        ante = inner_game_state.get('ante', 1)
         
         # === RETRY PENALTY ===
         # Negative reward for invalid actions that require retries
@@ -138,8 +141,11 @@ class BalatroRewardCalculator:
                 
         # === BLIND COMPLETION ===
         # Main goal - beat the blind (only reward once per episode)
-        if blind_defeated and not self.blind_already_defeated and game_over == 0:
-            base_reward = 50.0
+        if blind_defeated and not self.blind_already_defeated:
+            # Exponential scaling — ante 8 boss worth ~16x ante 1 small blind
+            ante_multiplier = 1.5 ** (ante - 1)
+            base_reward = 30.0 * ante_multiplier
+            reward += base_reward
             
             # Calculate hands used (starting hands - hands_left)
             round_info = inner_game_state.get('round', {})
@@ -169,6 +175,21 @@ class BalatroRewardCalculator:
             reward_breakdown.append(f"BLIND DEFEATED: +{base_reward} (base)")
             self.blind_already_defeated = True
             self.winning_chips = current_chips  # Store winning chip count
+
+        # === PROGRESSION BONUS ===
+        # Detect ante increase
+        ante = inner_game_state.get('ante', 1)
+        if ante > self.current_ante:
+            ante_progress_bonus = 10.0 * ante  # 20 for ante 2, 30 for ante 3...
+            reward += ante_progress_bonus
+            self.current_ante = ante
+
+        # === BOSS BLIND BONUS ===
+        # Boss blinds are checkpoints — reward them separately (may conflict with ante progression bonus and inflate rewards...)
+        blind_name = inner_game_state.get('blind_name', '')
+        is_boss = blind_name not in ['Small Blind', 'Big Blind', 'None']
+        if blind_defeated and is_boss:
+            reward += 15.0 * ante  # Extra signal for clearing bosses
             
         # === PENALTIES ===
         # Game over penalty - ONLY for actual losses (blind not defeated)
@@ -186,11 +207,17 @@ class BalatroRewardCalculator:
         self.previous_chips = current_chips
         self.previous_hand_played = current_hand_played
         
-        return reward
+        return float(np.clip(reward, -25.0, 25.0))
     
     def reset(self):
         """Reset for new episode - log win details if episode was won"""
         self.episode_count += 1
+
+        # Update furthest ante-reached
+        current_ante = self.current_ante  # track this
+        if current_ante > self.best_ante_reached:
+            self.best_ante_reached = current_ante
+            # Bonus logged for curriculum tracking
         
         # Check if this episode was a win and log details
         if self.blind_already_defeated:
@@ -199,8 +226,11 @@ class BalatroRewardCalculator:
             
             # Show win rate on every win for immediate feedback
             self._log_win_rate()
+        else:
+            self._log_episode()
         
         # Reset for next episode
+        self.current_ante = 1
         self.previous_chips = 0
         self.previous_hand_played = "None"
         self.blind_already_defeated = False
@@ -220,7 +250,6 @@ class BalatroRewardCalculator:
         
         # Episode summary
         print(f"🎯 EPISODE {self.episode_count} COMPLETE: WON with {final_chips} chips in {len(self.hands_played)} hands | Total reward: {self.episode_total_reward:.1f}")
-        
         # Hand-by-hand breakdown
         for i, hand in enumerate(self.hands_played, 1):
             print(f"   Hand {i}: {hand['hand_type']} (+{hand['chips']} chips, total: {hand['total_chips']})")
@@ -238,3 +267,15 @@ class BalatroRewardCalculator:
             'total_chips': current_chips
         }
         self.hands_played.append(hand_info)
+
+    def _log_episode():
+        final_chips = self.winning_chips if self.winning_chips > 0 else (max([hand['total_chips'] for hand in self.hands_played]) if self.hands_played else 0)
+
+        # Episode summary
+        print(f"🎯 EPISODE {self.episode_count}: reached ante {self.current_ante}, "
+            f"cleared {self.blind_name} with "
+            f"{self.winning_chips} chips | reward: {self.episode_total_reward:.1f}")  
+        # Hand-by-hand breakdown
+        for i, hand in enumerate(self.hands_played, 1):
+            print(f"   Hand {i}: {hand['hand_type']} (+{hand['chips']} chips, total: {hand['total_chips']})")
+    
