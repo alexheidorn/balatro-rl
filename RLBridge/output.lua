@@ -14,22 +14,33 @@ function O.get_game_state()
         game_over = 1
     end
 
+    local blind_cleared = 0
+    if G.STATE == G.STATES.ROUND_EVAL then
+        blind_cleared = 1
+    end
+
     local game_win = 0
     if G.STATE == G.STATES.ROUND_EVAL then
-        game_win = 1
+        local ante = G.GAME and G.GAME.round_resets and G.GAME.round_resets.ante or 0
+        local blind = G.GAME and G.GAME.blind or nil
+        local is_boss = blind and blind.boss or false
+        if ante == 9 and is_boss then  -- ante resets to 9 internally after beating ante 8 boss
+            game_win = 1
+        end
     end
 
     return {
         -- Basic state info
         state = G.STATE,
         blind_name = G.GAME and G.GAME.blind and G.GAME.blind.name or "None",
-
+        
+        blind_cleared = blind_cleared,
+        game_win = game_win,
         ante = G.GAME and G.GAME.round_resets and G.GAME.round_resets.ante or 1,
 
         round_count = G.GAME and G.GAME.stats and G.GAME.stats.rounds or 0,
         
         game_over = game_over,
-        game_win = G.GAME.win or false,
 
         -- Round info (hands/discards left)
         round = O.get_round_info(),
