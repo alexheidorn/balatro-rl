@@ -7,6 +7,7 @@ the 300-chip small blind in ante 1. No complex scaling, just core fundamentals.
 
 from typing import Dict, Any
 from .. import global_var
+import numpy as np
 
 class BalatroRewardCalculator:
     """
@@ -243,12 +244,13 @@ class BalatroRewardCalculator:
         }
         self.hands_played.append(hand_info)
 
-    def _log_episode():
+    def _log_episode(self):
         final_chips = self.winning_chips if self.winning_chips > 0 else (max([hand['total_chips'] for hand in self.hands_played]) if self.hands_played else 0)
 
         # Episode summary
-        print(f"🎯 EPISODE {self.episode_count}: reached ante {self.current_ante}, "
-            f"cleared {self.blind_name} with "
+        print(f"🎯 EPISODE {self.episode_count}: "
+            # reached ante {self.current_ante}, "
+            # f"cleared {self.blind_name} with "
             f"{self.winning_chips} chips | reward: {self.episode_total_reward:.1f}")  
         # Hand-by-hand breakdown
         for i, hand in enumerate(self.hands_played, 1):

@@ -13,6 +13,7 @@ class BalatroMetricsCallback(BaseCallback):
         self.all_chips = []
         self.all_run_lengths = [] # steps per episode
         self.current_run_length = 0
+        self.won = False
 
         # Best-ever metrics
         self.best_ante = 0
@@ -48,7 +49,7 @@ class BalatroMetricsCallback(BaseCallback):
                 self.hand_type_counts[hand_type] += 1
                 self.hand_type_scores[hand_type].append(hand_score)
 
-            blind_cleared = bool(info.get("blind_cleared", False)) or won
+            blind_cleared = bool(info.get("blind_cleared", False))
             if blind_cleared: 
                 self.total_blind_clears += 1
 
@@ -87,10 +88,11 @@ class BalatroMetricsCallback(BaseCallback):
 
             # --- Logging ---
             # Win / clear rates
-            self.logger.record("game/win_rate_overall",     self._win_pct() )
-            self.logger.record("game/win_rate_last_100",    round(100 * sum(self.recent_outcomes) / len(self.recent_outcomes), 2))
-            self.logger.record("game/blind_clear_rate",     self.total_blind_clears / ep)
-            self.logger.record("custom/total_wins",         self.total_wins)
+            self.logger.record("game/win_rate_overall",             self._win_pct() )
+            self.logger.record("game/win_rate_last_100",            round(100 * sum(self.recent_outcomes) / len(self.recent_outcomes), 2))
+            self.logger.record("game/blind_clear_rate_overall",     self.total_blind_clears / ep)
+            # self.logger.record("game/blind_clear_rate_last_100",    round(100 * sum(self.total_blind_clears)))
+            self.logger.record("custom/total_wins",                 self.total_wins)
 
             # Chips
             self.logger.record("game/chips_this_episode",   chips)
@@ -101,6 +103,8 @@ class BalatroMetricsCallback(BaseCallback):
             self.logger.record("game/best_ante",            self.best_ante)
             self.logger.record("game/best_round",           self.best_round)
             self.logger.record("game/ante_this_episode",    ante)
+            # self.logger.record("game/avg_ante",             self.)
+            # self.logger.record("game/avg_round" ,           self.)
 
              # Run length
             self.logger.record("game/avg_run_length",       sum(self.all_run_lengths) / len(self.all_run_lengths))
@@ -124,6 +128,6 @@ class BalatroMetricsCallback(BaseCallback):
 
             self.logger.record("custom/jokers",             self.jokers)
 
-            self.logger.dump(self.num_timesteps)
+            # self.logger.dump(self.num_timesteps)
 
         return True
