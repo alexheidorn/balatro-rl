@@ -38,6 +38,7 @@ class BalatroMetricsCallback(BaseCallback):
     def _on_step(self) -> bool:
         dones = self.locals.get("dones", [])
         infos = self.locals.get("infos", [])
+        needs_dump = False
 
         for done, info in zip(dones, infos):
             self.current_run_length += 1
@@ -128,6 +129,9 @@ class BalatroMetricsCallback(BaseCallback):
 
             self.logger.record("custom/jokers",             self.jokers)
 
-            # self.logger.dump(self.num_timesteps)
+            needs_dump = True
+
+        if needs_dump:
+            self.logger.dump(self.num_timesteps)
 
         return True
