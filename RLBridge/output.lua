@@ -14,16 +14,19 @@ function O.get_game_state()
         game_over = 1
     end
 
-    local game_win = 0
+    local blind_clear = 0
     if G.STATE == G.STATES.ROUND_EVAL then
-        game_win = 1
+        blind_clear = 1
     end
+
+    local game_win = 0
 
     return {
         -- Basic state info
         state = G.STATE,
         game_over = game_over,
         game_win = game_win,
+        blind_clear = blind_clear
 
         -- Round info (hands/discards left)
         round = O.get_round_info(),
