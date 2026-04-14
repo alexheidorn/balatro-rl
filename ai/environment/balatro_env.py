@@ -404,3 +404,19 @@ class BalatroEnv(gym.Env):
             slices[action_name] = slice(start, start + size)
             start += size
         return slices
+
+    def _build_info(self, game_state: dict, won: bool, blind_cleared: bool) -> dict:
+        """Build a consistent info dict for all step returns."""
+        return {
+            "won": won,
+            "blind_cleared": blind_cleared,
+            "ante": game_state.get('ante', 0),
+            "round": game_state.get('round_count', 0),
+            "chips": game_state.get('chips', 0),
+            "blind_chips": game_state.get('blind_chips', 300),
+            "joker_count": len(game_state.get('jokers', [])),
+            "hand_type": game_state.get('current_hand', {}).get('handname', 'None'),
+            "hand_score": game_state.get('current_hand', {}).get('score', 0),
+            "hands_left": game_state.get('round', {}).get('hands_left', 0),
+            "discards_left": game_state.get('round', {}).get('discards_left', 0),
+        }
