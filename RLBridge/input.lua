@@ -98,5 +98,39 @@ function I.discard_hand()
     return { success = true }
 end
 
+function I.cash_out()
+    if not G.GAME then
+        return { success = false, error = "Game not available" }
+    end
+
+    -- Walk UIBox tree looking for the cash_out button node
+    local function find_button(node)
+        if not node then return nil end
+        if node.config and node.config.button == 'cash_out' then
+            -- Simulate what Balatro does when a button node is pressed
+            return node
+        end
+        if node.children then
+            for _, child in ipairs(node.children) do
+                local found = find_button(child) 
+                if found then return found end
+            end
+        end
+        return nil
+    end
+
+    if G.I and G.I.UIBox then
+        for _, box in ipairs(G.I.UIBox) do
+            local btn = find_button(box)
+            if btn then
+                G.FUNCS.cash_out(btn)
+                utils.log_input("cash_out via button node " .. utils.completed_success_msg)
+                return { success = true }
+            end
+        end
+    end
+
+    return { success = false, error = "Cash out button not found in UI tree yet" }
+end
 
 return I

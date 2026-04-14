@@ -15,6 +15,7 @@ ACTIONS.DISCARD_HAND = 3
 ACTIONS.START_RUN = 4
 ACTIONS.SELECT_BLIND = 5
 ACTIONS.RESTART_RUN = 6
+ACTIONS.CASH_OUT = 11
 
 -- Action mapping tables
 local ACTION_IDS = {
@@ -24,6 +25,8 @@ local ACTION_IDS = {
     start_run = ACTIONS.START_RUN,
     select_blind = ACTIONS.SELECT_BLIND,
     restart_run = ACTIONS.RESTART_RUN,
+
+    cash_out = ACTIONS.CASH_OUT
 }
 
 local ID_TO_ACTION = {
@@ -33,6 +36,8 @@ local ID_TO_ACTION = {
     [ACTIONS.START_RUN] = "start_run",
     [ACTIONS.SELECT_BLIND] = "select_blind",
     [ACTIONS.RESTART_RUN] = "restart_run",
+
+    [ACTIONS.CASH_OUT] = "cash_out"
 }
 
 -- Centralized action state tracking
@@ -109,6 +114,15 @@ local action_registry = {
         end,
         available_when = function()
             return (G.STATE == G.STATES.GAME_OVER or G.STATE == G.STATES.ROUND_EVAL) and not action_state.restart_run
+        end,
+    },
+
+    cash_out = {
+        execute = function (params)
+            return input.cash_out()
+        end,
+        available_when = function ()
+            return G.STATE == G.STATES.ROUND_EVAL and not action_state.cash_out
         end,
     },
 }
