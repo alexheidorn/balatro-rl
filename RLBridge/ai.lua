@@ -182,6 +182,11 @@ function AI.should_auto_skip(current_state, available_actions)
         return true
     end
     
+    -- Auto-skip cash out / Round Eval
+    if current_state.state == G.STATES.ROUND_EVAL then
+        return true
+    end
+
     -- Don't auto-skip anything else - core actions (1,2,3) go to AI
     
     return false
@@ -191,6 +196,19 @@ end
 --- @param current_state table Current game state
 --- @param available_actions table Available actions list  
 function AI.execute_auto_skip_action(current_state, available_actions)
+    -- -- In execute_auto_skip_action, add before the generic handler:
+    -- if current_state.state == G.STATES.ROUND_EVAL then
+    --     local input = require("input")
+    --     local result = input.cash_out()
+    --     if result.success then
+    --         utils.log_ai("Cash out successful")
+    --         state_transition_timer = 0.5
+    --     end
+    --     -- On failure the button doesn't exist yet; next frame will retry
+    --     last_combined_hash = nil
+    --     return
+    -- end
+    
     local action_id = available_actions[1]
     utils.log_ai("Auto-executing action: " .. action.get_action_name(action_id))
     
