@@ -138,6 +138,7 @@ class BalatroEnv(gym.Env):
             raise RuntimeError("Failed to send response to Balatro")
         
         # Wait for next request with new game state
+        ### 1. Timeout
         next_request = self.pipe_io.wait_for_request()
         if not next_request:
             self.game_over = True
@@ -150,6 +151,7 @@ class BalatroEnv(gym.Env):
         game_state = self.current_state.get('game_state', {})
         
         # Check for game over condition
+        ### 2. Game over
         game_over_flag = game_state.get('game_over', 0)
         if game_over_flag == 1:
             observation = self.state_mapper.process_game_state(self.current_state)
@@ -165,28 +167,32 @@ class BalatroEnv(gym.Env):
             return observation, reward, True, False, {}
 
         # Check for game win condition
-        game_win_flag = game_state.get('game_win', 0)
-        if game_win_flag == 1:
-            observation = self.state_mapper.process_game_state(self.current_state)
-            reward = self.reward_calculator.calculate_reward(
-                current_state=self.current_state,
-                prev_state=self.prev_state if self.prev_state else {}
-            )
+        ### 3. Blind win
+        # blind_win_flag = blind_state.get('blind_win', 0)
+        # if blind_win_flag == 1:
+        #     observation = self.state_mapper.process_game_state(self.current_state)
+        #
+        # ### Should the reward calculation be removed when the agent clears a blind?
+        #
+        #     reward = self.reward_calculator.calculate_reward(
+        #         current_state=self.current_state,
+        #         prev_state=self.prev_state if self.prev_state else {}
+        #     )
 
-            # Save replay
-            self.replay_system.try_save_replay(
-                file_path=self.replay_system.REPLAY_FILE_PATH,
-                seed=game_state.get('seed', ''),
-                actions=self.actions_taken,
-                score=reward,
-                chips=game_state.get('chips', 0)
-            )
+        #     # Save replay
+        #     self.replay_system.try_save_replay(
+        #         file_path=self.replay_system.REPLAY_FILE_PATH,
+        #         seed=game_state.get('seed', ''),
+        #         actions=self.actions_taken,
+        #         score=reward,
+        #         chips=game_state.get('chips', 0)
+        #     )
             
-            # Auto-send restart command to Balatro
-            restart_response = {"action": 6, "params": []}
-            self.pipe_io.send_response(restart_response)
+        #     # Auto-send restart command to Balatro
+        #     restart_response = {"action": 6, "params": []}
+        #     self.pipe_io.send_response(restart_response)
             
-            return observation, reward, True, False, {}
+        #     return observation, reward, True, False, {}
 
 
         # Process new state for SB3
