@@ -26,7 +26,7 @@ function O.get_game_state()
         state = G.STATE,
         game_over = game_over,
         game_win = game_win,
-        blind_clear = blind_clear
+        blind_clear = blind_clear,
 
         -- Round info (hands/discards left)
         round = O.get_round_info(),
