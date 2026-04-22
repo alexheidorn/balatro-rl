@@ -119,22 +119,25 @@ class BalatroRewardCalculator:
             # Calculate percentage of blind requirement this hand achieved
             chip_percentage = (chip_gain / blind_chips) * 100
             
+            chip_reward = float(np.clip(chip_percentage**2 / 500, 0, 20))  # Quadratic scaling which approximates old reward
+            reward += chip_reward
+            reward_breakdown.append(f"Chip gain: +{chip_gain} chips ({chip_percentage:.1f}% of blind): +{chip_reward:.2f}")
             # Monster hand bonus - overkill reward for beating blind in one shot
-            if chip_percentage >= 100:
-                reward += 20.0  # Huge bonus for one-shot blind completion
-                reward_breakdown.append(f"MONSTER HAND - One-shot blind kill (+{chip_gain} chips, {chip_percentage:.1f}%): +20.0")
-            elif chip_percentage >= self.REWARD_THRESHOLDS["excellent"]:
-                reward += 10.0
-                reward_breakdown.append(f"Excellent hand (+{chip_gain} chips, {chip_percentage:.1f}% of blind): +10.0")
-            elif chip_percentage >= self.REWARD_THRESHOLDS["good"]:
-                reward += 4.0
-                reward_breakdown.append(f"Good hand (+{chip_gain} chips, {chip_percentage:.1f}% of blind): +4.0")
-            elif chip_percentage >= self.REWARD_THRESHOLDS["decent"]:
-                reward += 1.0
-                reward_breakdown.append(f"Decent hand (+{chip_gain} chips, {chip_percentage:.1f}% of blind): +1.0")
-            else:
-                reward += 0.5
-                reward_breakdown.append(f"Small hand (+{chip_gain} chips, {chip_percentage:.1f}% of blind): +0.5")
+            # if chip_percentage >= 100:
+            #     reward += 20.0  # Huge bonus for one-shot blind completion
+            #     reward_breakdown.append(f"MONSTER HAND - One-shot blind kill (+{chip_gain} chips, {chip_percentage:.1f}%): +20.0")
+            # elif chip_percentage >= self.REWARD_THRESHOLDS["excellent"]:
+            #     reward += 10.0
+            #     reward_breakdown.append(f"Excellent hand (+{chip_gain} chips, {chip_percentage:.1f}% of blind): +10.0")
+            # elif chip_percentage >= self.REWARD_THRESHOLDS["good"]:
+            #     reward += 4.0
+            #     reward_breakdown.append(f"Good hand (+{chip_gain} chips, {chip_percentage:.1f}% of blind): +4.0")
+            # elif chip_percentage >= self.REWARD_THRESHOLDS["decent"]:
+            #     reward += 1.0
+            #     reward_breakdown.append(f"Decent hand (+{chip_gain} chips, {chip_percentage:.1f}% of blind): +1.0")
+            # else:
+            #     reward += 0.1
+            #     reward_breakdown.append(f"Small hand (+{chip_gain} chips, {chip_percentage:.1f}% of blind): +0.1")
         
         # === REMOVED HAND TYPE REWARDS ===
         # Hand type rewards removed - in Balatro, only chips matter!
@@ -208,7 +211,7 @@ class BalatroRewardCalculator:
         self.previous_chips = current_chips
         self.previous_hand_played = current_hand_played
         
-        return float(np.clip(reward, -25.0, 25.0))
+        return float(np.clip(reward, -25.0, 500.0))
     
     def reset(self):
         """Reset for new episode - log win details if episode was won"""
