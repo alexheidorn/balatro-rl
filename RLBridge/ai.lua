@@ -319,8 +319,12 @@ function AI.execute_auto_skip_action(current_state, available_actions)
         local result = input.cash_out()
         if result.success then
             -- utils.log_ai("Blind Beaten!")
+            -- utils.log_ai("Cash out successful")
             cash_out_executed = true
             state_transition_timer = 0.5
+        else
+            utils.log_ai("Cash out failed: " .. (result.error or "unknown"))
+            last_combined_hash = nil  -- retry next frame
         end
         return
     end

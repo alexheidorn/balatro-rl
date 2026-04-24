@@ -186,7 +186,7 @@ local action_registry = {
             return input.cash_out()
         end,
         available_when = function()
-            return G.STATE == G.STATES.ROUND_EVAL and not action_state.cash_out
+            return G.STATE == G.STATES.ROUND_EVAL and not action_state.cash_out and utils.is_game_ready_for_action()
         end,
     },
 }

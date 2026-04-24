@@ -32,7 +32,7 @@ from sb3_contrib.common.wrappers import ActionMasker
 from .environment.balatro_env import BalatroEnv
 from .utils.callbacks import BalatroMetricsCallback
 
-TRAINING_STEPS = 250000  # Total training steps // old default was 250000
+TRAINING_STEPS = 100000  # Total training steps // old default was 250000
 
 def update_seed_in_lua(filepath, new_seed):
     with open(filepath, "r") as f:
@@ -165,7 +165,7 @@ def train_agent(total_timesteps=100000, save_path="./models/balatro_final", resu
             total_timesteps=total_timesteps,
             callback=callbacks,
             progress_bar=True,
-            tb_log_name="balatro_run",   
+            tb_log_name="Balatro_Run",   
             reset_num_timesteps=(resume_from is None)
         )
         
