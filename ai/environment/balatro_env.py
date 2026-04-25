@@ -332,7 +332,7 @@ class BalatroEnv(gym.Env):
             action_masks.append([False] * self.MAX_SHOP_SLOTS)
             action_masks.append([False] * self.MAX_JOKER_SLOTS)
 
-        elif global_var.isShop:
+        elif state_id == 5:
             # SHOP: Disable cards, enable shop slots based on money
             for _ in range(self.MAX_CARDS):
                 action_masks.append([True, False]) 

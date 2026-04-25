@@ -301,7 +301,7 @@ class BalatroActionMapper:
         # Logger
         self.logger = logging.getLogger(__name__)
 
-    def process_action(self, rl_action: np.ndarray) -> Dict[str, Any]:
+    def process_action(self, rl_action: np.ndarray, state_id: int = 0) -> Dict[str, Any]:
         """
         Convert RL action to Balatro JSON.
         
@@ -327,12 +327,14 @@ class BalatroActionMapper:
             9: 10,  # SKIP_SHOP
             10: 11, # CASH_OUT
         }
+        SHOP_STATE = 5
+
         balatro_action_id = ai_to_balatro_mapping.get(ai_action, 1)  # Default to SELECT_HAND
         if balatro_action_id is None:
             balatro_action_id = 1
-            
-        is_shop = (state_id == 5)
-        if is_shop:
+
+        
+        if state_id == SHOP_STATE:
             params = self._extract_shop_params(rl_action, balatro_action_id)
         else:
             params = self._extract_select_hand_params(rl_action)
