@@ -6,7 +6,6 @@ the 300-chip small blind in ante 1. No complex scaling, just core fundamentals.
 """
 
 from typing import Dict, Any
-from .. import global_var
 import numpy as np
 
 class BalatroRewardCalculator:
@@ -31,8 +30,11 @@ class BalatroRewardCalculator:
         self.episode_total_reward = 0
         self.last_seen_hand_type = 'Unknown'  # Store hand type when we see it
         self.winning_chips = 0  # Store chips when blind is defeated
+
+        ## Shop vars
         self.previous_money = 0
         self.total_jokers = 0
+        self.peak_money = 0
         
         # Percentage-based reward thresholds (% of blind requirement)
         # Updated to encourage bigger single hands
@@ -41,11 +43,33 @@ class BalatroRewardCalculator:
             "good": 40.0,       # 40-74% of blind requirement (lowered from 50%)
             "decent": 20.0      # 20-39% of blind requirement (lowered from 25%)
         }
-    def calculate_reward(self, current_state, prev_state=None, phase=global_var.isShop):
+    def calculate_reward(self, current_state, prev_state=None):
+        reward = 0.0
+    
+        # Money reward applies in all phases
+        reward += self.calculate_money_reward(current_state, prev_state)
+        
         if phase == True:
-            return self.calculate_shop_reward(current_state, prev_state)
+            reward += self.calculate_shop_reward(current_state, prev_state)
         else:
-            return self.calculate_play_reward(current_state, prev_state)
+            reward += self.calculate_play_reward(current_state, prev_state)
+
+        return reward
+
+    def calculate_money_reward(self, current_state, prev_state=None) -> float:
+        reward = 0.0
+        current_game_state = current_state.get('game_state', {})
+        prev_game_state = prev_state.get('game_state', {}) if prev_state else {}
+
+        current_money = current_game_state.get('gold', 0)
+        prev_money = prev_game_state.get('gold', self.previous_money)
+
+        money_gained = current_money - prev_money
+        if money_gained > 0:
+            reward += money_gained * 0.5
+
+        self.previous_money = current_money
+        return reward
     
     def calculate_shop_reward(self, current_state, prev_state=None):
         reward = 0.0
@@ -242,11 +266,14 @@ class BalatroRewardCalculator:
         self.episode_total_reward = 0
         self.last_seen_hand_type = 'Unknown'
         self.winning_chips = 0
+
+        self.previous_money = 0
+        self.total_jokers = 0
+        self.peak_money = 0
+     
         # Reset game over penalty flag
         if hasattr(self, 'game_over_penalty_applied'):
             delattr(self, 'game_over_penalty_applied')
-        self.previous_money = 0
-        self.total_jokers = 0
 
     def _log_episode_win(self):
         """Log detailed breakdown of winning episode"""
