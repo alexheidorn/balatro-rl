@@ -10,7 +10,6 @@ import numpy as np
 from typing import Dict, List, Any
 from ..utils.validation import GameStateValidator, ResponseValidator
 import logging
-from .. import global_var
 
 
 def make_onehot(value: int, num_classes: int) -> List[float]:
@@ -331,7 +330,9 @@ class BalatroActionMapper:
         balatro_action_id = ai_to_balatro_mapping.get(ai_action, 1)  # Default to SELECT_HAND
         if balatro_action_id is None:
             balatro_action_id = 1
-        if global_var.isShop == True:
+            
+        is_shop = (state_id == 5)
+        if is_shop:
             params = self._extract_shop_params(rl_action, balatro_action_id)
         else:
             params = self._extract_select_hand_params(rl_action)
