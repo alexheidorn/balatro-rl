@@ -165,7 +165,7 @@ def train_agent(total_timesteps=100000, save_path="./models/balatro_final", resu
             total_timesteps=total_timesteps,
             callback=callbacks,
             progress_bar=True,
-            tb_log_name="Shop_Rewards",   
+            tb_log_name="Shop_Refactor",   
         )
         
         training_time = time.time() - start_time
@@ -247,55 +247,68 @@ if __name__ == "__main__":
     # Create necessary directories
     Path("./models").mkdir(exist_ok=True)
     Path("./tensorboard_logs").mkdir(exist_ok=True)
-
+ 
     # Query user for seed to use
     seed_choice_option = input("Input 0 to use the training seed, 1 for the testing seed, or 2 for a random seed: ")
-
+ 
     # Determine actual seed string and export to environment for the game mod
     if seed_choice_option == "0":
         seed_choice = "JFKGEEMG"  # training seed
     elif seed_choice_option == "1":
         seed_choice = "FK76PMFU"  # testing seed (example)
     else:
-        seed_choice = str(random.randint(1, 999999999))
+        import secrets, string
+        alphabet = string.ascii_uppercase + string.digits
+        seed_choice = ''.join(secrets.choice(alphabet) for _ in range(8))
     global_var.choosen_seed = seed_choice
     print(f"Using seed: {seed_choice} (option {seed_choice_option})")
-
+ 
     if os.name == 'nt':
         appdata_path = os.getenv('APPDATA')
-
+ 
         balatro_mod_path = Path(appdata_path) / "Balatro" / "Mods" / "RLBridge" / "ai.lua"
-
+ 
         update_seed_in_lua(balatro_mod_path, seed_choice)
     else:
         home = Path.home()
         balatro_mod_path = home / ".local" / "share" / "love" / "Mods" / "RLBridge" / "ai.lua"
-
+ 
         update_seed_in_lua(balatro_mod_path, seed_choice)
-
+ 
     # Train the agent
     print("\n🎮 Starting Balatro RL Training!")
     print("Setup steps:")
     print("1. ✅ Balatro is running with RLBridge mod")
     print("2. ✅ Balatro is in menu state")
-
+ 
     input("Press Enter to start training then press 'R' in Balatro)...")
     
     try:
-        # Find latest checkpoint to resume from
+        # Find latest checkpoint
         latest_checkpoint = None
         models_dir = Path("./models")
         if models_dir.exists():
             checkpoints = list(models_dir.glob("balatro_model_*_steps.zip"))
             if checkpoints:
-                # Sort by modification time and get the most recent
                 latest_checkpoint = max(checkpoints, key=lambda x: x.stat().st_mtime)
-                print(f"📂 Found checkpoint: {latest_checkpoint}")
-        
+ 
+        # Ask user whether to resume
+        resume_from = None
+        if latest_checkpoint:
+            print(f"📂 Found checkpoint: {latest_checkpoint}")
+            resume_choice = input("Resume from checkpoint? (y/n): ").strip().lower()
+            if resume_choice == "y":
+                resume_from = str(latest_checkpoint)
+                print(f"Resuming from {latest_checkpoint.name}")
+            else:
+                print("Starting fresh.")
+        else:
+            print("No checkpoint found, starting fresh.")
+ 
         model = train_agent(
             total_timesteps=TRAINING_STEPS,
             save_path="./models/balatro_trained",
-            resume_from=str(latest_checkpoint) if latest_checkpoint else None
+            resume_from=resume_from,
         )
         
         if model:
