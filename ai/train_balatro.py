@@ -34,6 +34,64 @@ from .utils.callbacks import BalatroMetricsCallback
 
 TRAINING_STEPS = 10000  # Total training steps // old default was 250000
 
+def get_next_run_number(models_dir: Path) -> int:
+    """Scan existing run_N_* directories and return the next run number."""
+    existing = [d for d in models_dir.iterdir() if d.is_dir() and d.name.startswith("run_")]
+    nums = []
+    for d in existing:
+        parts = d.name.split("_")
+        if len(parts) >= 2:
+            try:
+                nums.append(int(parts[1]))
+            except ValueError:
+                pass
+    return max(nums, default=0) + 1
+
+
+def pick_run_to_resume(models_dir: Path):
+    """
+    List all run directories that contain at least one checkpoint,
+    let the user pick one, and return (checkpoint_path, run_dir).
+    Returns (None, None) if the user cancels.
+    """
+    run_dirs = sorted(
+        [d for d in models_dir.iterdir() if d.is_dir() and d.name.startswith("run_")],
+        key=lambda d: d.stat().st_mtime,
+        reverse=True,
+    )
+
+    # Filter to only runs that actually have checkpoints
+    runs_with_checkpoints = []
+    for run_dir in run_dirs:
+        checkpoints = sorted(
+            run_dir.glob("balatro_model_*_steps.zip"),
+            key=lambda f: f.stat().st_mtime,
+            reverse=True,
+        )
+        if checkpoints:
+            runs_with_checkpoints.append((run_dir, checkpoints[0]))  # latest checkpoint per run
+
+    if not runs_with_checkpoints:
+        return None, None
+
+    print("\n📂 Available runs:")
+    for i, (run_dir, ckpt) in enumerate(runs_with_checkpoints):
+        print(f"  [{i + 1}] {run_dir.name}  (latest: {ckpt.name})")
+    print(f"  [0] Cancel — start fresh instead")
+
+    while True:
+        choice = input("Select run to resume: ").strip()
+        if choice == "0":
+            return None, None
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(runs_with_checkpoints):
+                run_dir, ckpt = runs_with_checkpoints[idx]
+                return ckpt, run_dir
+        except ValueError:
+            pass
+        print(f"  Enter a number between 0 and {len(runs_with_checkpoints)}")
+
 def update_seed_in_lua(filepath, new_seed):
     with open(filepath, "r") as f:
         content = f.read()
@@ -281,33 +339,36 @@ if __name__ == "__main__":
     input("Press Enter to start training then press 'R' in Balatro)...")
     
     try:
-        # Find latest checkpoint across all run directories
-        latest_checkpoint = None
         models_dir = Path("./models")
-        if models_dir.exists():
-            checkpoints = list(models_dir.glob("**/balatro_model_*_steps.zip"))
-            if checkpoints:
-                latest_checkpoint = max(checkpoints, key=lambda x: x.stat().st_mtime)
+        models_dir.mkdir(exist_ok=True)
 
-        # Ask user whether to resume
+        # Check if any runs with checkpoints exist
+        has_runs = any(
+            list(d.glob("balatro_model_*_steps.zip"))
+            for d in models_dir.iterdir()
+            if d.is_dir() and d.name.startswith("run_")
+        ) if models_dir.exists() else False
+
         resume_from = None
-        if latest_checkpoint:
-            print(f"📂 Found checkpoint: {latest_checkpoint}")
-            resume_choice = input("Resume from checkpoint? (y/n): ").strip().lower()
+        checkpoint_dir = None
+
+        if has_runs:
+            resume_choice = input("Resume from a previous run? (y/N): ").strip().lower()
             if resume_choice == "y":
-                resume_from = str(latest_checkpoint)
-                checkpoint_dir = str(latest_checkpoint.parent) + "/"
-                print(f"Resuming from {latest_checkpoint.name}")
-            else:
-                run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-                checkpoint_dir = f"./models/run_{run_id}/"
-                Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
-                print(f"Starting fresh. Checkpoints → {checkpoint_dir}")
-        else:
+                ckpt, run_dir = pick_run_to_resume(models_dir)
+                if ckpt:
+                    resume_from = str(ckpt)
+                    checkpoint_dir = str(run_dir) + "/"
+                    print(f"Resuming {run_dir.name} from {ckpt.name}")
+                else:
+                    print("No run selected, starting fresh.")
+
+        if checkpoint_dir is None:
+            run_num = get_next_run_number(models_dir)
             run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-            checkpoint_dir = f"./models/run_{run_id}/"
+            checkpoint_dir = f"./models/run_{run_num}_{run_id}/"
             Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
-            print(f"No checkpoint found, starting fresh. Checkpoints → {checkpoint_dir}")
+            print(f"Starting fresh. Checkpoints → {checkpoint_dir}")
 
         model = train_agent(
             total_timesteps=TRAINING_STEPS,
