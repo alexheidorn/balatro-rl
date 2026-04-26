@@ -14,8 +14,8 @@ Requirements:
 """
 import logging
 import os
-import random
 import time
+from datetime import datetime
 from pathlib import Path
 from ai import global_var
 import re
@@ -33,6 +33,64 @@ from .environment.balatro_env import BalatroEnv
 from .utils.callbacks import BalatroMetricsCallback
 
 TRAINING_STEPS = 10000  # Total training steps // old default was 250000
+
+def get_next_run_number(models_dir: Path) -> int:
+    """Scan existing run_N_* directories and return the next run number."""
+    existing = [d for d in models_dir.iterdir() if d.is_dir() and d.name.startswith("run_")]
+    nums = []
+    for d in existing:
+        parts = d.name.split("_")
+        if len(parts) >= 2:
+            try:
+                nums.append(int(parts[1]))
+            except ValueError:
+                pass
+    return max(nums, default=0) + 1
+
+
+def pick_run_to_resume(models_dir: Path):
+    """
+    List all run directories that contain at least one checkpoint,
+    let the user pick one, and return (checkpoint_path, run_dir).
+    Returns (None, None) if the user cancels.
+    """
+    run_dirs = sorted(
+        [d for d in models_dir.iterdir() if d.is_dir() and d.name.startswith("run_")],
+        key=lambda d: d.stat().st_mtime,
+        reverse=True,
+    )
+
+    # Filter to only runs that actually have checkpoints
+    runs_with_checkpoints = []
+    for run_dir in run_dirs:
+        checkpoints = sorted(
+            run_dir.glob("balatro_model_*_steps.zip"),
+            key=lambda f: f.stat().st_mtime,
+            reverse=True,
+        )
+        if checkpoints:
+            runs_with_checkpoints.append((run_dir, checkpoints[0]))  # latest checkpoint per run
+
+    if not runs_with_checkpoints:
+        return None, None
+
+    print("\n📂 Available runs:")
+    for i, (run_dir, ckpt) in enumerate(runs_with_checkpoints):
+        print(f"  [{i + 1}] {run_dir.name}  (latest: {ckpt.name})")
+    print(f"  [0] Cancel — start fresh instead")
+
+    while True:
+        choice = input("Select run to resume: ").strip()
+        if choice == "0":
+            return None, None
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(runs_with_checkpoints):
+                run_dir, ckpt = runs_with_checkpoints[idx]
+                return ckpt, run_dir
+        except ValueError:
+            pass
+        print(f"  Enter a number between 0 and {len(runs_with_checkpoints)}")
 
 def update_seed_in_lua(filepath, new_seed):
     with open(filepath, "r") as f:
@@ -114,14 +172,14 @@ def create_model(env, model_path=None):
     return model
 
 
-def create_callbacks(save_freq=1000):
+def create_callbacks(save_freq=1000, checkpoint_dir="./models/"):
     """Create training callbacks for saving and evaluation"""
     callbacks = []
     
     # Checkpoint callback - save model periodically
     checkpoint_callback = CheckpointCallback(
         save_freq=save_freq,
-        save_path="./models/",
+        save_path=checkpoint_dir,
         name_prefix="balatro_model"
     )
     callbacks.append(checkpoint_callback)
@@ -130,7 +188,7 @@ def create_callbacks(save_freq=1000):
     return callbacks
 
 
-def train_agent(total_timesteps=100000, save_path="./models/balatro_final", resume_from=None):
+def train_agent(total_timesteps=100000, save_path="./models/balatro_final", resume_from=None, checkpoint_dir="./models/"):
     """
     Main training function
     
@@ -138,6 +196,7 @@ def train_agent(total_timesteps=100000, save_path="./models/balatro_final", resu
         total_timesteps: Number of training steps
         save_path: Where to save final model
         resume_from: Path to checkpoint to resume from
+        checkpoint_dir: Directory to save checkpoints
     """
     logger = logging.getLogger(__name__)
     logger.info(f"Starting Balatro RL training with MaskablePPO")
@@ -155,7 +214,7 @@ def train_agent(total_timesteps=100000, save_path="./models/balatro_final", resu
             model = create_model(env)
         
         # Create callbacks
-        callbacks = create_callbacks(save_freq=max(1000, total_timesteps // 20))
+        callbacks = create_callbacks(save_freq=max(1000, total_timesteps // 20), checkpoint_dir=checkpoint_dir)
         
         # Train the model
         logger.info("Starting training...")
@@ -247,9 +306,9 @@ if __name__ == "__main__":
     # Create necessary directories
     Path("./models").mkdir(exist_ok=True)
     Path("./tensorboard_logs").mkdir(exist_ok=True)
- 
+
     # Query user for seed to use
-    seed_choice_option = input("Input 0 to use the training seed, 1 for the testing seed, or 2 for a random seed: ")
+    seed_choice_option = input("Input 0 to use the training seed, 1 for the testing seed, or 2 for random seed: ")
  
     # Determine actual seed string and export to environment for the game mod
     if seed_choice_option == "0":
@@ -257,58 +316,65 @@ if __name__ == "__main__":
     elif seed_choice_option == "1":
         seed_choice = "FK76PMFU"  # testing seed (example)
     else:
-        import secrets, string
-        alphabet = string.ascii_uppercase + string.digits
-        seed_choice = ''.join(secrets.choice(alphabet) for _ in range(8))
+        seed_choice = None
     global_var.choosen_seed = seed_choice
-    print(f"Using seed: {seed_choice} (option {seed_choice_option})")
- 
-    if os.name == 'nt':
-        appdata_path = os.getenv('APPDATA')
- 
-        balatro_mod_path = Path(appdata_path) / "Balatro" / "Mods" / "RLBridge" / "ai.lua"
- 
-        update_seed_in_lua(balatro_mod_path, seed_choice)
-    else:
-        home = Path.home()
-        balatro_mod_path = home / ".local" / "share" / "love" / "Mods" / "RLBridge" / "ai.lua"
- 
-        update_seed_in_lua(balatro_mod_path, seed_choice)
- 
+    print(f"Using seed: {seed_choice if seed_choice else '(none — game picks randomly)'}")
+
+    if seed_choice:
+        if os.name == 'nt':
+            appdata_path = os.getenv('APPDATA')
+            balatro_mod_path = Path(appdata_path) / "Balatro" / "Mods" / "RLBridge" / "ai.lua"
+            update_seed_in_lua(balatro_mod_path, seed_choice)
+        else:
+            home = Path.home()
+            balatro_mod_path = home / ".local" / "share" / "love" / "Mods" / "RLBridge" / "ai.lua"
+            update_seed_in_lua(balatro_mod_path, seed_choice)
+
     # Train the agent
     print("\n🎮 Starting Balatro RL Training!")
     print("Setup steps:")
     print("1. ✅ Balatro is running with RLBridge mod")
     print("2. ✅ Balatro is in menu state")
- 
+
     input("Press Enter to start training then press 'R' in Balatro)...")
     
     try:
-        # Find latest checkpoint
-        latest_checkpoint = None
         models_dir = Path("./models")
-        if models_dir.exists():
-            checkpoints = list(models_dir.glob("balatro_model_*_steps.zip"))
-            if checkpoints:
-                latest_checkpoint = max(checkpoints, key=lambda x: x.stat().st_mtime)
- 
-        # Ask user whether to resume
+        models_dir.mkdir(exist_ok=True)
+
+        # Check if any runs with checkpoints exist
+        has_runs = any(
+            list(d.glob("balatro_model_*_steps.zip"))
+            for d in models_dir.iterdir()
+            if d.is_dir() and d.name.startswith("run_")
+        ) if models_dir.exists() else False
+
         resume_from = None
-        if latest_checkpoint:
-            print(f"📂 Found checkpoint: {latest_checkpoint}")
-            resume_choice = input("Resume from checkpoint? (y/n): ").strip().lower()
+        checkpoint_dir = None
+
+        if has_runs:
+            resume_choice = input("Resume from a previous run? (y/N): ").strip().lower()
             if resume_choice == "y":
-                resume_from = str(latest_checkpoint)
-                print(f"Resuming from {latest_checkpoint.name}")
-            else:
-                print("Starting fresh.")
-        else:
-            print("No checkpoint found, starting fresh.")
- 
+                ckpt, run_dir = pick_run_to_resume(models_dir)
+                if ckpt:
+                    resume_from = str(ckpt)
+                    checkpoint_dir = str(run_dir) + "/"
+                    print(f"Resuming {run_dir.name} from {ckpt.name}")
+                else:
+                    print("No run selected, starting fresh.")
+
+        if checkpoint_dir is None:
+            run_num = get_next_run_number(models_dir)
+            run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+            checkpoint_dir = f"./models/run_{run_num}_{run_id}/"
+            Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
+            print(f"Starting fresh. Checkpoints → {checkpoint_dir}")
+
         model = train_agent(
             total_timesteps=TRAINING_STEPS,
-            save_path="./models/balatro_trained",
+            save_path=f"{checkpoint_dir}balatro_trained",
             resume_from=resume_from,
+            checkpoint_dir=checkpoint_dir,
         )
         
         if model:
