@@ -96,17 +96,7 @@ class BalatroEnv(gym.Env):
         # Initialize mappers
         self.state_mapper = BalatroStateMapper(observation_size=self.OBSERVATION_SIZE, max_actions=self.MAX_ACTIONS)
         self.action_mapper = BalatroActionMapper(action_slices=slices)
-    def _detect_phase(self, request):
-        current_game_state = request.get('game_state', {})
-        current_game_state_ID = current_game_state.get('state', 0)
-
-        if current_game_state_ID == 5:
-            # print("Blind Beaten!")
-            global_var.isShop = True
-            global_var.isBlind = False
-        else:
-            global_var.isShop = False
-            global_var.isBlind = True
+    
     def reset(self, seed=None, options=None):
         """
         Reset the environment for a new episode
@@ -144,7 +134,6 @@ class BalatroEnv(gym.Env):
                 raise RuntimeError("Failed to receive initial request from Balatro after restart")
         # Process initial state for SB3
         self.current_state = initial_request
-        self._detect_phase(initial_request)
         initial_observation = self.state_mapper.process_game_state(self.current_state)
         
         # Create initial action mask
@@ -180,7 +169,7 @@ class BalatroEnv(gym.Env):
             action[self.slices["action_selection"]] = [10]
         
         # Send action response to Balatro mod
-        response_data = self.action_mapper.process_action(rl_action=action)
+        response_data = self.action_mapper.process_action(rl_action=action, state_id=state_id)
         self.actions_taken.append(response_data)
         success = self.pipe_io.send_response(response_data)
         if not success:
@@ -208,7 +197,6 @@ class BalatroEnv(gym.Env):
             reward = self.reward_calculator.calculate_reward(
                 current_state=self.current_state,
                 prev_state=self.prev_state or {},
-                phase=self.current_state,
             )
             self.restart_pending = True
             return observation, reward, True, False, {
@@ -236,7 +224,7 @@ class BalatroEnv(gym.Env):
         # Update current state
         self.current_state = next_request
         is_endless_enabled = self.current_state.get('auto_endless_config', False)
-        self._detect_phase(next_request)
+     
         game_state = self.current_state.get('game_state', {})
         jokers = game_state.get('jokers', [])
         
@@ -343,7 +331,7 @@ class BalatroEnv(gym.Env):
             action_masks.append([False] * self.MAX_SHOP_SLOTS)
             action_masks.append([False] * self.MAX_JOKER_SLOTS)
 
-        elif global_var.isShop:
+        elif state_id == 5:
             # SHOP: Disable cards, enable shop slots based on money
             for _ in range(self.MAX_CARDS):
                 action_masks.append([True, False]) 

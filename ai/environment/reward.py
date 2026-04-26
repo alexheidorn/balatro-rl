@@ -6,7 +6,6 @@ the 300-chip small blind in ante 1. No complex scaling, just core fundamentals.
 """
 
 from typing import Dict, Any
-from .. import global_var
 import numpy as np
 
 class BalatroRewardCalculator:
@@ -31,8 +30,11 @@ class BalatroRewardCalculator:
         self.episode_total_reward = 0
         self.last_seen_hand_type = 'Unknown'  # Store hand type when we see it
         self.winning_chips = 0  # Store chips when blind is defeated
+
+        ## Shop vars
         self.previous_money = 0
         self.total_jokers = 0
+        self.peak_money = 0
         
         # Percentage-based reward thresholds (% of blind requirement)
         # Updated to encourage bigger single hands
@@ -41,37 +43,90 @@ class BalatroRewardCalculator:
             "good": 40.0,       # 40-74% of blind requirement (lowered from 50%)
             "decent": 20.0      # 20-39% of blind requirement (lowered from 25%)
         }
-    def calculate_reward(self, current_state, prev_state=None, phase=global_var.isShop):
-        if phase == True:
-            return self.calculate_shop_reward(current_state, prev_state)
-        else:
-            return self.calculate_play_reward(current_state, prev_state)
+    def calculate_reward(self, current_state, prev_state=None):
+        reward = 0.0
+    
+        # Shop_reward also calculates earning money,
+        # Money reward applies in all phases
+        
+        reward += self.calculate_shop_reward(current_state, prev_state)
+        reward += self.calculate_play_reward(current_state, prev_state)
+
+        return reward
     
     def calculate_shop_reward(self, current_state, prev_state=None):
         reward = 0.0
         current_game_state = current_state.get('game_state', {})
+        prev_game_state = prev_state.get('game_state', {}) if prev_state else {}
 
+        ante = current_game_state.get('ante', 1)
         current_money = current_game_state.get('gold', 0)
-        current_jokers = current_state.get('jokers', [])
-        money_spent = self.previous_money - current_money
+        prev_money = prev_game_state.get('gold', self.previous_money)
+        money_spent = prev_money - current_money
+        
+        current_jokers = current_game_state.get('jokers', [])
+        prev_joker_count = self.total_jokers
+        jokers_gained = len(current_jokers) - prev_joker_count
+        jokers_sold = max(0, prev_joker_count - len(current_jokers) - jokers_gained)
 
-        if len(current_jokers) > self.total_jokers:
-            reward += 2.0
+        # === JOKER PURCHASE ===
+        if jokers_gained > 0:
+            joker_value = 10.0
+            reward += joker_value * jokers_gained
 
-        if money_spent > 0 and current_money == 0 and len(current_jokers) == self.total_jokers:
-            reward -= 0.5
+        # === JOKER SELL ===
+        # Selling is sometimes correct (freeing slots, funding better joker)
+        # Small penalty so agent doesn't sell randomly, but not too harsh
+        if jokers_sold > 0:
+            reward -= 1.0 * jokers_sold
 
+        # === MONEY EARNED (interest + end of round income) ===
+        # Reward gaining money — catches interest, blind rewards etc.
+        # Only reward when money goes UP without a purchase context - TODO: refactor this when we allow tarot and spectral cards (Hermint, Temperance, Immolate, etc.)
+        if current_money > prev_money and money_spent <= 0:
+            money_gained = current_money - prev_money
+            reward += money_gained * 0.5
+
+        # === SMART SPENDING ===
+        # Reward spending that resulted in a joker (value purchase)
+        # Penalize spending with nothing to show for it (reroll fishing)
+        if money_spent > 0:
+            if jokers_gained > 0:
+                # Good spend — bought something useful
+                # Efficiency bonus for not overpaying relative to ante income
+                efficiency = min(1.0, money_spent / max(1, current_money + money_spent))
+                reward += 0.5 * (1.0 - efficiency)  # Reward cheaper purchases
+            else:
+                # Spent money but got nothing (reroll or bad buy)
+                reward -= 0.3 * np.log1p(money_spent)
+
+        # === JOKER SLOT UTILIZATION ===
+        # Reward filling joker slots — empty slots are wasted potential
+        max_joker_slots = 5
+        utilization = len(current_jokers) / max_joker_slots
+        reward += utilization * 0.5  # Small constant bonus per step in shop
+
+        # === MONEY FLOOR PENALTY ===
+        # Penalize leaving shop broke with no jokers
+        # (spent everything and got nothing)
+        if current_money == 0 and len(current_jokers) == 0:
+            reward -= 3.0
+
+        # === SKIP SHOP PENALTY ===
+        # If agent skips shop with joker slots open and enough money to buy
+        # This is tricky to detect directly, handle via utilization reward above
+
+        # === RETRY PENALTY (carry over from play reward) ===
         retry_count = current_game_state.get('retry_count', 0)
         if retry_count > 0:
-            reward -= 1.0 * retry_count
-        
-        if current_money > 6:
-            reward -= 0.5
-        
+            reward -= 0.5 * retry_count
+
+        # Update tracking
         self.previous_money = current_money
         self.total_jokers = len(current_jokers)
 
-        return reward
+        return float(np.tanh(reward / 5.0) * 5.0)  # Soft clip shop rewards
+
     def calculate_play_reward(self, current_state: Dict[str, Any], 
                         prev_state: Dict[str, Any] = None) -> float:
         """Simple reward focused on ante 1 small blind success"""
@@ -242,11 +297,14 @@ class BalatroRewardCalculator:
         self.episode_total_reward = 0
         self.last_seen_hand_type = 'Unknown'
         self.winning_chips = 0
+
+        self.previous_money = 0
+        self.total_jokers = 0
+        self.peak_money = 0
+     
         # Reset game over penalty flag
         if hasattr(self, 'game_over_penalty_applied'):
             delattr(self, 'game_over_penalty_applied')
-        self.previous_money = 0
-        self.total_jokers = 0
 
     def _log_episode_win(self):
         """Log detailed breakdown of winning episode"""
