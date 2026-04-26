@@ -197,7 +197,6 @@ class BalatroEnv(gym.Env):
             reward = self.reward_calculator.calculate_reward(
                 current_state=self.current_state,
                 prev_state=self.prev_state or {},
-                phase=self.current_state,
             )
             self.restart_pending = True
             return observation, reward, True, False, {
